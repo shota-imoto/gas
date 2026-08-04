@@ -46,6 +46,22 @@ function testCalendarTimedRange() {
   doPost(e);
 }
 
+// 時間指定 (分単位) 例: 8/1、1830、予定名 -> 18:30-19:30
+function testCalendarTimedMinute() {
+  const e = {postData:{contents:JSON.stringify({
+    events:[{message:{type:"text",text:"8/1、1830、焼肉"},source:{type:"user",userId:"TEST"}}]
+  })}};
+  doPost(e);
+}
+
+// 時間指定 (分単位・範囲) 例: 8/1、1830-2015、予定名
+function testCalendarTimedMinuteRange() {
+  const e = {postData:{contents:JSON.stringify({
+    events:[{message:{type:"text",text:"8/1、1830-2015、焼肉"},source:{type:"user",userId:"TEST"}}]
+  })}};
+  doPost(e);
+}
+
 // 区切り文字にカンマ・スペースを使った例
 function testCalendarAltDelimiters() {
   const e = {postData:{contents:JSON.stringify({
@@ -98,8 +114,8 @@ function saveCalendar(content){
     }
   }else{
     const base=resolveDate(m.month,m.day);
-    const start=new Date(base.getFullYear(),base.getMonth(),base.getDate(),m.startHour,0);
-    const end=new Date(base.getFullYear(),base.getMonth(),base.getDate(),m.endHour,0);
+    const start=new Date(base.getFullYear(),base.getMonth(),base.getDate(),m.startHour,m.startMinute);
+    const end=new Date(base.getFullYear(),base.getMonth(),base.getDate(),m.endHour,m.endMinute);
     cal.createEvent(m.title,start,end);
   }
 }
