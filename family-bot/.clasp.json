@@ -1,5 +1,6 @@
 {
   "scriptId": "REDACTED_SCRIPT_ID",
+  "deploymentId": "REDACTED_DEPLOYMENT_ID",
   "scriptExtensions": [
     ".js",
     ".gs"
