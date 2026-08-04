@@ -33,12 +33,10 @@ jobs:
         run: npx clasp push -f
 
       - name: Deploy
-        id: deploy
         working-directory: ${{ inputs.project }}
+        env:
+          DEPLOYMENT_IDS: ${{ secrets.DEPLOYMENT_IDS }}
         run: |
-          deployment_id=$(jq -r '.deploymentId' .clasp.json)
-          npx clasp deploy -i "$deployment_id" --description "GitHub Actions: ${{ github.sha }}" --json
-          url="https://script.google.com/macros/s/$deployment_id/exec"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "### Deployed ${{ inputs.project }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+          deployment_id=$(echo "$DEPLOYMENT_IDS" | jq -r --arg p "${{ inputs.project }}" '.[$p]')
+          npx clasp deploy -i "$deployment_id" --description "GitHub Actions: ${{ github.sha }}" --json > /dev/null
+          echo "Deployed ${{ inputs.project }}" >> "$GITHUB_STEP_SUMMARY"
