@@ -1,0 +1,31 @@
+name: Deploy family-bot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'family-bot/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-family-bot.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Write clasp credentials
+        run: echo "$CLASP_CREDENTIALS" > "$HOME/.clasprc.json"
+        env:
+          CLASP_CREDENTIALS: ${{ secrets.CLASP_CREDENTIALS }}
+
+      - name: Push to Apps Script
+        working-directory: family-bot
+        run: npx clasp push -f
