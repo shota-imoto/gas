@@ -31,3 +31,14 @@ jobs:
       - name: Push to Apps Script
         working-directory: ${{ inputs.project }}
         run: npx clasp push -f
+
+      - name: Deploy
+        id: deploy
+        working-directory: ${{ inputs.project }}
+        run: |
+          deployment_id=$(jq -r '.deploymentId' .clasp.json)
+          npx clasp deploy -i "$deployment_id" --description "GitHub Actions: ${{ github.sha }}" --json
+          url="https://script.google.com/macros/s/$deployment_id/exec"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Deployed ${{ inputs.project }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
