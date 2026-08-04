@@ -2,9 +2,11 @@
   "name": "gas",
   "private": true,
   "scripts": {
-    "clasp": "clasp"
+    "clasp": "clasp",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "@google/clasp": "3.3.0"
+    "@google/clasp": "3.3.0",
+    "vitest": "4.1.10"
   }
 }
