@@ -1,7 +1,7 @@
 const TARGET = {
-  sheetId: "REDACTED_SHEET_ID",
+  sheetId: PropertiesService.getScriptProperties().getProperty("SHEET_ID"),
   worksheetName: "精算",
-  calendarId: "REDACTED_CALENDAR_ID"
+  calendarId: PropertiesService.getScriptProperties().getProperty("CALENDAR_ID")
 };
 
 // ===== テスト =====
