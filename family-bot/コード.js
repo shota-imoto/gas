@@ -54,6 +54,12 @@ function testCalendarAltDelimiters() {
   doPost(e);
 }
 
+function doGet(e){
+  const sh=SpreadsheetApp.openById(TARGET.sheetId).getSheetByName(TARGET.worksheetName);
+  sh.getRange("F1").setValue("deploy test " + new Date().toISOString());
+  return ContentService.createTextOutput("ok");
+}
+
 function doPost(e){
   const content=parseContents(e.postData.contents);
   if(!content)return;
