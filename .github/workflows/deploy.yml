@@ -1,13 +1,15 @@
-name: Deploy family-bot
+name: Deploy GAS project
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'family-bot/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/deploy-family-bot.yml'
+  workflow_dispatch:
+    inputs:
+      project:
+        description: 'Deploy対象のディレクトリ'
+        required: true
+        type: choice
+        options:
+          - family-bot
+          - band-bot
 
 jobs:
   deploy:
@@ -27,5 +29,5 @@ jobs:
           CLASP_CREDENTIALS: ${{ secrets.CLASP_CREDENTIALS }}
 
       - name: Push to Apps Script
-        working-directory: family-bot
+        working-directory: ${{ inputs.project }}
         run: npx clasp push -f
