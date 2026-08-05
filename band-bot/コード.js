@@ -54,7 +54,7 @@ function sendMonthlyBandScheduleMessage() {
         Authorization: `Bearer ${token}`,
       },
       payload: JSON.stringify({
-        to: GROUP_ID,
+        to: TEST_GROUP_ID,
         messages: [
           {
             type: 'text',
