@@ -47,24 +47,60 @@ describe("parseCalendar", () => {
 
   it("時間指定(1時間): 8/1、18、焼肉 -> 18:00-19:00", () => {
     expect(parseCalendar("8/1、18、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1, startHour: 18, endHour: 19, title: "焼肉",
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 18, startMinute: 0, endHour: 19, endMinute: 0, title: "焼肉",
     });
   });
 
   it("時間指定(範囲): 8/1、18-20、焼肉 -> 18:00-20:00", () => {
     expect(parseCalendar("8/1、18-20、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1, startHour: 18, endHour: 20, title: "焼肉",
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 18, startMinute: 0, endHour: 20, endMinute: 0, title: "焼肉",
     });
   });
 
   it("区切り文字にカンマ・スペースを使っても解釈できる", () => {
     expect(parseCalendar("8/1, 18-20, 焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1, startHour: 18, endHour: 20, title: "焼肉",
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 18, startMinute: 0, endHour: 20, endMinute: 0, title: "焼肉",
     });
   });
 
   it("日付形式が不正ならnull", () => {
     expect(parseCalendar("8月1日、旅行")).toBeNull();
+  });
+
+  it("分指定(3桁・1時間): 8/1、830、焼肉 -> 8:30-9:30", () => {
+    expect(parseCalendar("8/1、830、焼肉")).toEqual({
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 8, startMinute: 30, endHour: 9, endMinute: 30, title: "焼肉",
+    });
+  });
+
+  it("分指定(4桁・1時間): 8/1、1830、焼肉 -> 18:30-19:30", () => {
+    expect(parseCalendar("8/1、1830、焼肉")).toEqual({
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 18, startMinute: 30, endHour: 19, endMinute: 30, title: "焼肉",
+    });
+  });
+
+  it("分指定(範囲): 8/1、1830-2015、焼肉 -> 18:30-20:15", () => {
+    expect(parseCalendar("8/1、1830-2015、焼肉")).toEqual({
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 18, startMinute: 30, endHour: 20, endMinute: 15, title: "焼肉",
+    });
+  });
+
+  it("開始のみ分指定、終了は時のみ: 8/1、1830-20、焼肉 -> 18:30-20:00", () => {
+    expect(parseCalendar("8/1、1830-20、焼肉")).toEqual({
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 18, startMinute: 30, endHour: 20, endMinute: 0, title: "焼肉",
+    });
+  });
+
+  it("60分以上はnull", () => {
+    expect(parseCalendar("8/1、1899、焼肉")).toBeNull();
+    expect(parseCalendar("8/1、1800-2099、焼肉")).toBeNull();
   });
 });
 
