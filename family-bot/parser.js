@@ -13,8 +13,6 @@ function parseExpense(text){
   return {type:"expense",what:s[0],howMuch:Number(s[1])};
 }
 
-const VALID_MINUTES=[0,15,30,45];
-
 /**
  * 時刻トークン(1〜4桁の数字)を{hour,minute}に変換する。
  *  - 1〜2桁: 時のみ(分は0) 例: "18" -> 18:00
@@ -37,7 +35,7 @@ function parseTimeToken(token){
  *  - 8/1、18-20、予定名   -> 18:00-20:00
  *  - 8/1、1830、予定名    -> 18:30-19:30 (1時間、分指定)
  *  - 8/1、1830-2015、予定名 -> 18:30-20:15
- * 分は00/15/30/45のみ許容する。
+ * 分は0〜59の任意の値を許容する。
  */
 function parseCalendar(text){
   const s=splitFields(text);
@@ -68,7 +66,7 @@ function parseCalendar(text){
     if(!start)return null;
     const end=hm[2]?parseTimeToken(hm[2]):{hour:start.hour+1,minute:start.minute};
     if(!end)return null;
-    if(!VALID_MINUTES.includes(start.minute)||!VALID_MINUTES.includes(end.minute))return null;
+    if(start.minute>59||end.minute>59)return null;
     if(!title)return null;
 
     return {

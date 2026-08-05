@@ -98,9 +98,9 @@ describe("parseCalendar", () => {
     });
   });
 
-  it("15/30/45分以外はnull", () => {
-    expect(parseCalendar("8/1、1820、焼肉")).toBeNull();
-    expect(parseCalendar("8/1、1800-2040、焼肉")).toBeNull();
+  it("60分以上はnull", () => {
+    expect(parseCalendar("8/1、1899、焼肉")).toBeNull();
+    expect(parseCalendar("8/1、1800-2099、焼肉")).toBeNull();
   });
 });
 
