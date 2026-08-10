@@ -31,9 +31,10 @@ npm run deploy -- family-bot   # または band-bot
 
 （`--` の後ろの引数がプロジェクト名。付け忘れるとエラーになる）
 
-内部で以下を実行している（`scripts/deploy.sh`）。
+内部で以下を実行している（`scripts/deploy.sh`）。テストが失敗した場合はpush/deployされない。
 
 ```
+npm test
 cd family-bot   # または band-bot
 npx clasp push -f
 npx clasp deploy -i "$DEPLOYMENT_ID" --description "手動デプロイ: $(date +%Y-%m-%d)"

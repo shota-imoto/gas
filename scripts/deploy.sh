@@ -31,6 +31,9 @@ if ! npx clasp list >/dev/null 2>&1; then
   npx clasp login
 fi
 
+echo "==> テストを実行します"
+npm test
+
 echo "==> $PROJECT を push します"
 (cd "$PROJECT" && npx clasp push -f)
 
