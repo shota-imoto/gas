@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "clasp": "clasp",
-    "test": "vitest run"
+    "test": "vitest run",
+    "setup": "bash scripts/setup.sh",
+    "deploy": "bash scripts/deploy.sh"
   },
   "devDependencies": {
     "@google/clasp": "3.3.0",
