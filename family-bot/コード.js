@@ -8,7 +8,7 @@ const TARGET = {
 
 /**
  * 「精算」シートに記録済みのuserIdを重複なく一覧表示する(エディタから手動実行して実行ログを確認する用)。
- * FAMILY_MEMBERS(名前→userIdのマップ)を作る際の参考として、家計簿を記録したことがあるメンバーのIDを洗い出す。
+ * FAMILY_MEMBERS(userId→名前のマップ)を作る際の参考として、家計簿を記録したことがあるメンバーのIDを洗い出す。
  * (家計簿を一度も記録していないメンバーは含まれない点に注意)
  */
 function listKnownUserIds(){
@@ -154,11 +154,9 @@ function notifyOtherFamilyMembers(content){
   const membersJson=props.getProperty("FAMILY_MEMBERS");
   if(!token||!membersJson)return;
 
-  const members=JSON.parse(membersJson); // {"名前":"userId", ...}
-  const entries=Object.entries(members);
-  const senderEntry=entries.find(([,id])=>id===content.userId);
-  const senderName=senderEntry?senderEntry[0]:null;
-  const targetIds=entries.filter(([,id])=>id!==content.userId).map(([,id])=>id);
+  const members=JSON.parse(membersJson); // {"userId":"名前", ...}
+  const senderName=members[content.userId]??null;
+  const targetIds=Object.keys(members).filter(id=>id!==content.userId);
   if(targetIds.length===0)return;
 
   const text=formatCalendarNotification(content.message,senderName);
