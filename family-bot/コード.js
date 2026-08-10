@@ -8,7 +8,7 @@ const TARGET = {
 
 /**
  * 「精算」シートに記録済みのuserIdを重複なく一覧表示する(エディタから手動実行して実行ログを確認する用)。
- * FAMILY_MEMBER_USER_IDS用のuserId一覧を集める目的で、家計簿を記録したことがあるメンバーのIDを洗い出す。
+ * FAMILY_MEMBERS(名前→userIdのマップ)を作る際の参考として、家計簿を記録したことがあるメンバーのIDを洗い出す。
  * (家計簿を一度も記録していないメンバーは含まれない点に注意)
  */
 function listKnownUserIds(){
@@ -144,32 +144,26 @@ function saveCalendar(content){
 
 /**
  * カレンダー予定を追加した本人以外の家族メンバーに、LINEのpush messageで通知する。
- * LINE_CHANNEL_ACCESS_TOKEN / FAMILY_MEMBER_USER_IDS が未設定の場合は何もしない
+ * 送信者の表示名はLINEのプロフィールではなく、FAMILY_MEMBERSに登録した名前を使う。
+ * LINE_CHANNEL_ACCESS_TOKEN / FAMILY_MEMBERS が未設定の場合は何もしない
  * (Script Propertiesが未設定でも既存の記録機能自体は壊れないようにするため)。
  */
 function notifyOtherFamilyMembers(content){
   const props=PropertiesService.getScriptProperties();
   const token=props.getProperty("LINE_CHANNEL_ACCESS_TOKEN");
-  const memberIdsJson=props.getProperty("FAMILY_MEMBER_USER_IDS");
-  if(!token||!memberIdsJson)return;
+  const membersJson=props.getProperty("FAMILY_MEMBERS");
+  if(!token||!membersJson)return;
 
-  const memberIds=JSON.parse(memberIdsJson);
-  const targets=memberIds.filter(id=>id!==content.userId);
-  if(targets.length===0)return;
+  const members=JSON.parse(membersJson); // {"名前":"userId", ...}
+  const entries=Object.entries(members);
+  const senderEntry=entries.find(([,id])=>id===content.userId);
+  const senderName=senderEntry?senderEntry[0]:null;
+  const targetIds=entries.filter(([,id])=>id!==content.userId).map(([,id])=>id);
+  if(targetIds.length===0)return;
 
-  const senderName=getLineDisplayName(content.userId,token);
   const text=formatCalendarNotification(content.message,senderName);
 
-  targets.forEach(to=>pushLineMessage(to,text,token));
-}
-
-function getLineDisplayName(userId,token){
-  const res=UrlFetchApp.fetch(`https://api.line.me/v2/bot/profile/${userId}`,{
-    headers:{Authorization:`Bearer ${token}`},
-    muteHttpExceptions:true,
-  });
-  if(res.getResponseCode()!==200)return null;
-  return JSON.parse(res.getContentText()).displayName;
+  targetIds.forEach(to=>pushLineMessage(to,text,token));
 }
 
 function pushLineMessage(to,text,token){
