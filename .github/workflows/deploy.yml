@@ -37,7 +37,7 @@ jobs:
         run: npx clasp push -f
 
       - name: Debug push failure
-        if: steps.push.outcome == 'failure'
+        if: failure() && steps.push.outcome == 'failure'
         continue-on-error: true
         working-directory: ${{ inputs.project }}
         env:
@@ -55,7 +55,7 @@ jobs:
           echo "Deployed ${{ inputs.project }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Debug deploy failure
-        if: steps.deploy.outcome == 'failure'
+        if: failure() && steps.deploy.outcome == 'failure'
         continue-on-error: true
         working-directory: ${{ inputs.project }}
         env:
