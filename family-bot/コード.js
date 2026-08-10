@@ -4,6 +4,25 @@ const TARGET = {
   calendarId: PropertiesService.getScriptProperties().getProperty("CALENDAR_ID")
 };
 
+// ===== ユーティリティ =====
+
+/**
+ * 「精算」シートに記録済みのuserIdを重複なく一覧表示する(エディタから手動実行して実行ログを確認する用)。
+ * FAMILY_MEMBERS(userId→名前のマップ)を作る際の参考として、家計簿を記録したことがあるメンバーのIDを洗い出す。
+ * (家計簿を一度も記録していないメンバーは含まれない点に注意)
+ */
+function listKnownUserIds(){
+  const sh=SpreadsheetApp.openById(TARGET.sheetId).getSheetByName(TARGET.worksheetName);
+  const lastRow=sh.getLastRow();
+  if(lastRow<1){
+    Logger.log("記録なし");
+    return;
+  }
+  const userIds=sh.getRange(1,3,lastRow,1).getValues().flat().filter(v=>v!=="");
+  const uniqueIds=[...new Set(userIds)];
+  Logger.log(uniqueIds);
+}
+
 // ===== テスト =====
 
 // 家計簿
@@ -75,7 +94,7 @@ function doPost(e){
   if(!content)return;
   switch(content.message.type){
     case "expense": saveExpense(content); break;
-    case "calendar": saveCalendar(content); break;
+    case "calendar": handleCalendar(content); break;
   }
 }
 
@@ -98,6 +117,22 @@ function saveExpense(content){
   sh.getRange(r,4).setValue(content.message.howMuch);
 }
 
+/**
+ * @typedef {Object} CalendarContent
+ * @property {{type:"calendar", allDay:boolean, month:number, title:string, day?:number, startDay?:number, endDay?:number, startHour?:number, startMinute?:number, endHour?:number, endMinute?:number}} message
+ *   parseCalendar()が返す構造。allDayの場合はstartDay/endDayを、時間指定の場合はday/startHour/startMinute/endHour/endMinuteを持つ。
+ * @property {string} userId
+ */
+
+/**
+ * カレンダー予定をスプレッドシートに保存し、追加した本人以外の家族メンバーへLINE通知する。
+ * @param {CalendarContent} content
+ */
+function handleCalendar(content){
+  saveCalendar(content);
+  notifyOtherFamilyMembers(content);
+}
+
 function saveCalendar(content){
   const m=content.message;
   const cal=CalendarApp.getCalendarById(TARGET.calendarId);
@@ -118,4 +153,37 @@ function saveCalendar(content){
     const end=new Date(base.getFullYear(),base.getMonth(),base.getDate(),m.endHour,m.endMinute);
     cal.createEvent(m.title,start,end);
   }
+}
+
+/**
+ * カレンダー予定を追加した本人以外の家族メンバーに、LINEのpush messageで通知する。
+ * 送信者の表示名はLINEのプロフィールではなく、FAMILY_MEMBERSに登録した名前を使う。
+ * LINE_CHANNEL_ACCESS_TOKEN / FAMILY_MEMBERS が未設定の場合は何もしない
+ * (Script Propertiesが未設定でも既存の記録機能自体は壊れないようにするため)。
+ * @param {CalendarContent} content
+ */
+function notifyOtherFamilyMembers(content){
+  const props=PropertiesService.getScriptProperties();
+  const token=props.getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+  const membersJson=props.getProperty("FAMILY_MEMBERS");
+  if(!token||!membersJson)return;
+
+  const members=JSON.parse(membersJson); // {"userId":"名前", ...}
+  const senderName=members[content.userId]??null;
+  const targetIds=Object.keys(members).filter(id=>id!==content.userId);
+  if(targetIds.length===0)return;
+
+  const text=formatCalendarNotification(content.message,senderName);
+
+  targetIds.forEach(to=>pushLineMessage(to,text,token));
+}
+
+function pushLineMessage(to,text,token){
+  UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push",{
+    method:"post",
+    contentType:"application/json",
+    headers:{Authorization:`Bearer ${token}`},
+    payload:JSON.stringify({to,messages:[{type:"text",text}]}),
+    muteHttpExceptions:true,
+  });
 }
