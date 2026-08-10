@@ -32,10 +32,20 @@ jobs:
           CLASP_CREDENTIALS: ${{ secrets.CLASP_CREDENTIALS }}
 
       - name: Push to Apps Script
+        id: push
         working-directory: ${{ inputs.project }}
         run: npx clasp push -f
 
+      - name: Debug push failure
+        if: steps.push.outcome == 'failure'
+        continue-on-error: true
+        working-directory: ${{ inputs.project }}
+        env:
+          DEBUG: clasp:*
+        run: npx clasp push -f
+
       - name: Deploy
+        id: deploy
         working-directory: ${{ inputs.project }}
         env:
           DEPLOYMENT_IDS: ${{ secrets.DEPLOYMENT_IDS }}
@@ -43,3 +53,14 @@ jobs:
           deployment_id=$(echo "$DEPLOYMENT_IDS" | jq -r --arg p "${{ inputs.project }}" '.[$p]')
           npx clasp deploy -i "$deployment_id" --description "GitHub Actions: ${{ github.sha }}" --json > /dev/null
           echo "Deployed ${{ inputs.project }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Debug deploy failure
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        working-directory: ${{ inputs.project }}
+        env:
+          DEPLOYMENT_IDS: ${{ secrets.DEPLOYMENT_IDS }}
+          DEBUG: clasp:*
+        run: |
+          deployment_id=$(echo "$DEPLOYMENT_IDS" | jq -r --arg p "${{ inputs.project }}" '.[$p]')
+          npx clasp deploy -i "$deployment_id" --description "GitHub Actions: ${{ github.sha }}" --json > /dev/null
