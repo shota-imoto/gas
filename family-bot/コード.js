@@ -94,10 +94,7 @@ function doPost(e){
   if(!content)return;
   switch(content.message.type){
     case "expense": saveExpense(content); break;
-    case "calendar":
-      saveCalendar(content);
-      notifyOtherFamilyMembers(content);
-      break;
+    case "calendar": handleCalendar(content); break;
   }
 }
 
@@ -118,6 +115,22 @@ function saveExpense(content){
   sh.getRange(r,2).setValue(content.message.what);
   sh.getRange(r,3).setValue(content.userId);
   sh.getRange(r,4).setValue(content.message.howMuch);
+}
+
+/**
+ * @typedef {Object} CalendarContent
+ * @property {{type:"calendar", allDay:boolean, month:number, title:string, day?:number, startDay?:number, endDay?:number, startHour?:number, startMinute?:number, endHour?:number, endMinute?:number}} message
+ *   parseCalendar()が返す構造。allDayの場合はstartDay/endDayを、時間指定の場合はday/startHour/startMinute/endHour/endMinuteを持つ。
+ * @property {string} userId
+ */
+
+/**
+ * カレンダー予定をスプレッドシートに保存し、追加した本人以外の家族メンバーへLINE通知する。
+ * @param {CalendarContent} content
+ */
+function handleCalendar(content){
+  saveCalendar(content);
+  notifyOtherFamilyMembers(content);
 }
 
 function saveCalendar(content){
@@ -147,6 +160,7 @@ function saveCalendar(content){
  * 送信者の表示名はLINEのプロフィールではなく、FAMILY_MEMBERSに登録した名前を使う。
  * LINE_CHANNEL_ACCESS_TOKEN / FAMILY_MEMBERS が未設定の場合は何もしない
  * (Script Propertiesが未設定でも既存の記録機能自体は壊れないようにするため)。
+ * @param {CalendarContent} content
  */
 function notifyOtherFamilyMembers(content){
   const props=PropertiesService.getScriptProperties();
