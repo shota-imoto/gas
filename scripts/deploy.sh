@@ -26,6 +26,11 @@ if [[ -z "$DEPLOYMENT_ID" ]]; then
   exit 1
 fi
 
+if ! npx clasp list >/dev/null 2>&1; then
+  echo "==> clasp未ログイン、または認証切れです。ログインします"
+  npx clasp login
+fi
+
 echo "==> $PROJECT を push します"
 (cd "$PROJECT" && npx clasp push -f)
 
