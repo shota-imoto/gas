@@ -100,6 +100,23 @@ function resolveDate(month,day){
   return d;
 }
 
+function pad2(n){
+  return String(n).padStart(2,"0");
+}
+
+/**
+ * カレンダー予定追加の通知メッセージ本文を組み立てる(GAS API非依存の純粋関数)。
+ * senderNameが取得できなかった場合(null等)は「〇〇さんが」を省略する。
+ */
+function formatCalendarNotification(m,senderName){
+  const dateLabel=m.allDay
+    ?(m.startDay===m.endDay?`${m.month}/${m.startDay}`:`${m.month}/${m.startDay}-${m.endDay}`)
+    :`${m.month}/${m.day}`;
+  const timeLabel=m.allDay?"":` ${pad2(m.startHour)}:${pad2(m.startMinute)}-${pad2(m.endHour)}:${pad2(m.endMinute)}`;
+  const who=senderName?`${senderName}さんが`:"";
+  return `${who}予定を追加しました\n${dateLabel}${timeLabel} ${m.title}`;
+}
+
 if(typeof module!=="undefined"&&module.exports){
-  module.exports={splitFields,parseExpense,parseCalendar,parseText,resolveDate};
+  module.exports={splitFields,parseExpense,parseCalendar,parseText,resolveDate,formatCalendarNotification};
 }

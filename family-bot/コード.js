@@ -4,6 +4,25 @@ const TARGET = {
   calendarId: PropertiesService.getScriptProperties().getProperty("CALENDAR_ID")
 };
 
+// ===== ユーティリティ =====
+
+/**
+ * 「精算」シートに記録済みのuserIdを重複なく一覧表示する(エディタから手動実行して実行ログを確認する用)。
+ * FAMILY_MEMBER_USER_IDS用のuserId一覧を集める目的で、家計簿を記録したことがあるメンバーのIDを洗い出す。
+ * (家計簿を一度も記録していないメンバーは含まれない点に注意)
+ */
+function listKnownUserIds(){
+  const sh=SpreadsheetApp.openById(TARGET.sheetId).getSheetByName(TARGET.worksheetName);
+  const lastRow=sh.getLastRow();
+  if(lastRow<1){
+    Logger.log("記録なし");
+    return;
+  }
+  const userIds=sh.getRange(1,3,lastRow,1).getValues().flat().filter(v=>v!=="");
+  const uniqueIds=[...new Set(userIds)];
+  Logger.log(uniqueIds);
+}
+
 // ===== テスト =====
 
 // 家計簿
@@ -75,7 +94,10 @@ function doPost(e){
   if(!content)return;
   switch(content.message.type){
     case "expense": saveExpense(content); break;
-    case "calendar": saveCalendar(content); break;
+    case "calendar":
+      saveCalendar(content);
+      notifyOtherFamilyMembers(content);
+      break;
   }
 }
 
@@ -118,4 +140,44 @@ function saveCalendar(content){
     const end=new Date(base.getFullYear(),base.getMonth(),base.getDate(),m.endHour,m.endMinute);
     cal.createEvent(m.title,start,end);
   }
+}
+
+/**
+ * カレンダー予定を追加した本人以外の家族メンバーに、LINEのpush messageで通知する。
+ * LINE_CHANNEL_ACCESS_TOKEN / FAMILY_MEMBER_USER_IDS が未設定の場合は何もしない
+ * (Script Propertiesが未設定でも既存の記録機能自体は壊れないようにするため)。
+ */
+function notifyOtherFamilyMembers(content){
+  const props=PropertiesService.getScriptProperties();
+  const token=props.getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+  const memberIdsJson=props.getProperty("FAMILY_MEMBER_USER_IDS");
+  if(!token||!memberIdsJson)return;
+
+  const memberIds=JSON.parse(memberIdsJson);
+  const targets=memberIds.filter(id=>id!==content.userId);
+  if(targets.length===0)return;
+
+  const senderName=getLineDisplayName(content.userId,token);
+  const text=formatCalendarNotification(content.message,senderName);
+
+  targets.forEach(to=>pushLineMessage(to,text,token));
+}
+
+function getLineDisplayName(userId,token){
+  const res=UrlFetchApp.fetch(`https://api.line.me/v2/bot/profile/${userId}`,{
+    headers:{Authorization:`Bearer ${token}`},
+    muteHttpExceptions:true,
+  });
+  if(res.getResponseCode()!==200)return null;
+  return JSON.parse(res.getContentText()).displayName;
+}
+
+function pushLineMessage(to,text,token){
+  UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push",{
+    method:"post",
+    contentType:"application/json",
+    headers:{Authorization:`Bearer ${token}`},
+    payload:JSON.stringify({to,messages:[{type:"text",text}]}),
+    muteHttpExceptions:true,
+  });
 }
