@@ -33,12 +33,15 @@ jobs:
 
       - name: Push to Apps Script
         working-directory: ${{ inputs.project }}
+        env:
+          DEBUG: clasp:*
         run: npx clasp push -f
 
       - name: Deploy
         working-directory: ${{ inputs.project }}
         env:
           DEPLOYMENT_IDS: ${{ secrets.DEPLOYMENT_IDS }}
+          DEBUG: clasp:*
         run: |
           deployment_id=$(echo "$DEPLOYMENT_IDS" | jq -r --arg p "${{ inputs.project }}" '.[$p]')
           npx clasp deploy -i "$deployment_id" --description "GitHub Actions: ${{ github.sha }}" --json > /dev/null
