@@ -8,7 +8,8 @@
 ## セットアップ（初回のみ）
 
 1. プロジェクトルートで `npm run setup` を実行
-2. @shota-imoto から `DEPLOYMENT_ID` をもらって `.env` に設定
+2. 初めてデプロイするアカウントの場合、Apps Scriptエディタで任意の関数を一度実行してOAuth権限を承認する（403エラー対策。詳細は補足参照）
+3. @shota-imoto から `DEPLOYMENT_ID` をもらって `.env` に設定
 
 以降、「本番環境へのデプロイ手順」が実行できます。
 
