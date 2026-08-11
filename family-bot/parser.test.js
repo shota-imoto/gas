@@ -154,35 +154,35 @@ describe("formatCalendarNotification", () => {
   it("終日(単日)・送信者名ありの場合", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行" };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定を追加しました\n8/1 旅行"
+      "カレンが予定をちゅいかちた！\n8/1 旅行"
     );
   });
 
   it("終日(複数日)の場合", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 3, title: "旅行" };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定を追加しました\n8/1-3 旅行"
+      "カレンが予定をちゅいかちた！\n8/1-3 旅行"
     );
   });
 
   it("時間指定の場合", () => {
     const m = { allDay: false, month: 8, day: 1, startHour: 18, startMinute: 0, endHour: 20, endMinute: 0, title: "焼肉" };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定を追加しました\n8/1 18:00-20:00 焼肉"
+      "カレンが予定をちゅいかちた！\n8/1 18:00-20:00 焼肉"
     );
   });
 
   it("分指定の場合は0埋めされる", () => {
     const m = { allDay: false, month: 8, day: 1, startHour: 8, startMinute: 5, endHour: 9, endMinute: 5, title: "焼肉" };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定を追加しました\n8/1 08:05-09:05 焼肉"
+      "カレンが予定をちゅいかちた！\n8/1 08:05-09:05 焼肉"
     );
   });
 
   it("送信者名がnullの場合は「〇〇が」を省略する", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行" };
     expect(formatCalendarNotification(m, null)).toBe(
-      "予定を追加しました\n8/1 旅行"
+      "予定をちゅいかちた！\n8/1 旅行"
     );
   });
 });

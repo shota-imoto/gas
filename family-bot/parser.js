@@ -114,7 +114,7 @@ function formatCalendarNotification(m,senderName){
     :`${m.month}/${m.day}`;
   const timeLabel=m.allDay?"":` ${pad2(m.startHour)}:${pad2(m.startMinute)}-${pad2(m.endHour)}:${pad2(m.endMinute)}`;
   const who=senderName?`${senderName}が`:"";
-  return `${who}予定を追加しました\n${dateLabel}${timeLabel} ${m.title}`;
+  return `${who}予定をちゅいかちた！\n${dateLabel}${timeLabel} ${m.title}`;
 }
 
 if(typeof module!=="undefined"&&module.exports){
