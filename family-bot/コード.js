@@ -89,23 +89,37 @@ function testCalendarAltDelimiters() {
   doPost(e);
 }
 
+/**
+ * 入力形式が正しくない場合や保存処理に失敗した場合、送信者本人にLINEで返信する。
+ * 家計簿・カレンダーどちらも登録が成功した場合、登録できたことが送信者本人に伝わるよう返信する。
+ * 複数イベントの一括通知やWebhook検証イベント(events:[])、テキスト以外のメッセージは
+ * 対象外とし、これまで通り何もしない(返信先が曖昧なため)。
+ */
 function doPost(e){
-  const content=parseContents(e.postData.contents);
-  if(!content)return;
-  switch(content.message.type){
-    case "expense": saveExpense(content); break;
-    case "calendar": handleCalendar(content); break;
-  }
-}
+  const p=JSON.parse(e.postData.contents);
+  if(p.events.length!==1)return;
+  const ev=p.events[0];
+  if(!ev.message||ev.message.type!=="text")return;
 
-function parseContents(json){
-  const p=JSON.parse(json);
-  if(p.events.length!==1)return null;
-  const e=p.events[0];
-  if(!e.message||e.message.type!=="text")return null;
-  const m=parseText(e.message.text);
-  if(!m)return null;
-  return {message:m,userId:e.source.userId};
+  const replyToken=ev.replyToken;
+  const userId=ev.source.userId;
+  const m=parseText(ev.message.text);
+  if(!m){
+    replyLineMessage(replyToken,"入力間違いあるから見直ちて！");
+    return;
+  }
+
+  const content={message:m,userId};
+  try{
+    switch(m.type){
+      case "expense": saveExpense(content); break;
+      case "calendar": handleCalendar(content); break;
+    }
+    replyLineMessage(replyToken,"ぱぱぱぱ");
+  }catch(err){
+    console.error(`保存処理でエラーが発生しました (userId=${userId}): ${err}`);
+    replyLineMessage(replyToken,"書き込みにしっぱい😔入力は正しいから、開発側の調査が必要ちゅ🤔");
+  }
 }
 
 function saveExpense(content){
@@ -126,11 +140,17 @@ function saveExpense(content){
 
 /**
  * カレンダー予定をスプレッドシートに保存し、追加した本人以外の家族メンバーへLINE通知する。
+ * 通知(notifyOtherFamilyMembers)の失敗は保存自体の失敗と区別するためここで握りつぶし、
+ * ログにのみ残す(呼び出し元のtry/catchで「保存に失敗しました」と誤って返信されないようにする)。
  * @param {CalendarContent} content
  */
 function handleCalendar(content){
   saveCalendar(content);
-  notifyOtherFamilyMembers(content);
+  try{
+    notifyOtherFamilyMembers(content);
+  }catch(err){
+    console.error(`家族への通知処理でエラーが発生しました (userId=${content.userId}): ${err}`);
+  }
 }
 
 function saveCalendar(content){
@@ -163,9 +183,8 @@ function saveCalendar(content){
  * @param {CalendarContent} content
  */
 function notifyOtherFamilyMembers(content){
-  const props=PropertiesService.getScriptProperties();
-  const token=props.getProperty("LINE_CHANNEL_ACCESS_TOKEN");
-  const membersJson=props.getProperty("FAMILY_MEMBERS");
+  const token=getLineChannelAccessToken();
+  const membersJson=PropertiesService.getScriptProperties().getProperty("FAMILY_MEMBERS");
   if(!token||!membersJson)return;
 
   const members=JSON.parse(membersJson); // {"userId":"名前", ...}
@@ -178,12 +197,47 @@ function notifyOtherFamilyMembers(content){
   targetIds.forEach(to=>pushLineMessage(to,text,token));
 }
 
+function getLineChannelAccessToken(){
+  return PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+}
+
+/**
+ * LINEのpush message APIを呼び出す。
+ * トークンが無効等でリクエスト自体は成功してもAPIがエラーを返すことがあるため、
+ * レスポンスコードを確認し、失敗時はStackdriverにエラーとして記録する
+ * (トークンなど機密情報はログに出力しない)。
+ */
 function pushLineMessage(to,text,token){
-  UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push",{
+  const res=UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push",{
     method:"post",
     contentType:"application/json",
     headers:{Authorization:`Bearer ${token}`},
     payload:JSON.stringify({to,messages:[{type:"text",text}]}),
     muteHttpExceptions:true,
   });
+  const code=res.getResponseCode();
+  if(code<200||code>=300){
+    console.error(`LINE通知の送信に失敗しました (to=${to}, status=${code}): ${res.getContentText()}`);
+  }
+}
+
+/**
+ * LINEのreply message APIを呼び出し、送信者本人にメッセージを返信する。
+ * LINE_CHANNEL_ACCESS_TOKENが未設定、またはreplyTokenが無い場合(テスト実行など)は何もしない。
+ */
+function replyLineMessage(replyToken,text){
+  const token=getLineChannelAccessToken();
+  if(!token||!replyToken)return;
+
+  const res=UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply",{
+    method:"post",
+    contentType:"application/json",
+    headers:{Authorization:`Bearer ${token}`},
+    payload:JSON.stringify({replyToken,messages:[{type:"text",text}]}),
+    muteHttpExceptions:true,
+  });
+  const code=res.getResponseCode();
+  if(code<200||code>=300){
+    console.error(`LINE返信の送信に失敗しました (status=${code}): ${res.getContentText()}`);
+  }
 }

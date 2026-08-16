@@ -9,8 +9,98 @@ function splitFields(text){
 function parseExpense(text){
   const s=splitFields(text);
   if(s.length!==2)return null;
-  if(!/^\d+$/.test(s[1]))return null;
-  return {type:"expense",what:s[0],howMuch:Number(s[1])};
+  const howMuch=parseExpenseAmount(s[1]);
+  if(howMuch===null)return null;
+  return {type:"expense",what:s[0],howMuch};
+}
+
+/**
+ * 金額欄をパースする。
+ *  - 「-1200」のように先頭に「-」を付けた整数(相殺などのマイナス金額)
+ *  - 「=-2500*2」のように先頭に「=」を付けた四則演算の数式(+ - * /、丸括弧)
+ * を許容する。数式はeval/Functionを使わず専用パーサーで評価するため、
+ * 数字と演算子以外の文字は一切実行されない。結果が整数でない場合は無効とする(円は整数のため)。
+ */
+function parseExpenseAmount(token){
+  if(/^-?\d+$/.test(token))return Number(token);
+  if(token.startsWith("=")){
+    const result=evalArithmetic(token.slice(1));
+    if(result===null||!Number.isInteger(result))return null;
+    return result;
+  }
+  return null;
+}
+
+/**
+ * 数値・+ - * / ・丸括弧のみからなる四則演算の式を評価する再帰下降パーサー。
+ * 対応外の文字が含まれる場合や、構文として不正な場合はnullを返す。
+ */
+function evalArithmetic(expr){
+  if(!/^[-+*/().\d\s]+$/.test(expr))return null;
+
+  let i=0;
+  const skipSpace=()=>{ while(expr[i]===" ")i++; };
+
+  function parseNumber(){
+    skipSpace();
+    const start=i;
+    while(i<expr.length&&/\d/.test(expr[i]))i++;
+    if(i===start)return null;
+    return Number(expr.slice(start,i));
+  }
+
+  function parseFactor(){
+    skipSpace();
+    if(expr[i]==="("){
+      i++;
+      const v=parseExpr();
+      skipSpace();
+      if(v===null||expr[i]!==")")return null;
+      i++;
+      return v;
+    }
+    if(expr[i]==="-"){
+      i++;
+      const v=parseFactor();
+      return v===null?null:-v;
+    }
+    return parseNumber();
+  }
+
+  function parseTerm(){
+    let v=parseFactor();
+    if(v===null)return null;
+    for(;;){
+      skipSpace();
+      if(expr[i]==="*"||expr[i]==="/"){
+        const op=expr[i];i++;
+        const rhs=parseFactor();
+        if(rhs===null)return null;
+        v=op==="*"?v*rhs:v/rhs;
+      }else break;
+    }
+    return v;
+  }
+
+  function parseExpr(){
+    let v=parseTerm();
+    if(v===null)return null;
+    for(;;){
+      skipSpace();
+      if(expr[i]==="+"||expr[i]==="-"){
+        const op=expr[i];i++;
+        const rhs=parseTerm();
+        if(rhs===null)return null;
+        v=op==="+"?v+rhs:v-rhs;
+      }else break;
+    }
+    return v;
+  }
+
+  const result=parseExpr();
+  skipSpace();
+  if(result===null||i!==expr.length)return null;
+  return result;
 }
 
 /**
@@ -48,6 +138,9 @@ function parseCalendar(text){
     const month=Number(dm[1]);
     const startDay=Number(dm[2]);
     const endDay=dm[3]?Number(dm[3]):startDay;
+    if(!isValidMonthDay(month,startDay))return null;
+    if(!isValidMonthDay(month,endDay))return null;
+    if(startDay>endDay)return null;
     if(!title)return null;
     return {type:"calendar",allDay:true,month,startDay,endDay,title};
   }
@@ -59,6 +152,7 @@ function parseCalendar(text){
     if(!dm)return null;
     const month=Number(dm[1]);
     const day=Number(dm[2]);
+    if(!isValidMonthDay(month,day))return null;
 
     const hm=hourPart.match(/^(\d{1,4})(?:-(\d{1,4}))?$/);
     if(!hm)return null;
@@ -67,6 +161,12 @@ function parseCalendar(text){
     const end=hm[2]?parseTimeToken(hm[2]):{hour:start.hour+1,minute:start.minute};
     if(!end)return null;
     if(start.minute>59||end.minute>59)return null;
+    if(start.hour>23)return null;
+    // endは分省略時の既定値(start.hour+1)が24を跨ぐことがあるため、明示指定時のみ検証する
+    if(hm[2]){
+      if(end.hour>23)return null;
+      if(end.hour*60+end.minute<=start.hour*60+start.minute)return null;
+    }
     if(!title)return null;
 
     return {
@@ -80,7 +180,16 @@ function parseCalendar(text){
   return null;
 }
 
+/**
+ * 「日付、数字」の2要素は、日付形式が先頭に来ているなら家計簿ではなくカレンダーとして扱う。
+ * (parseExpenseは先頭要素の形式を問わないため、「8/1、1200」のように予定名が数字の
+ * カレンダー入力を、判定順序だけで家計簿として誤って飲み込んでしまうのを防ぐ)
+ */
 function parseText(text){
+  const s=splitFields(text);
+  if(s.length===2&&/^\d{1,2}\/\d{1,2}(-\d{1,2})?$/.test(s[0])){
+    return parseCalendar(text);
+  }
   return parseExpense(text) ?? parseCalendar(text);
 }
 
@@ -102,6 +211,17 @@ function resolveDate(month,day){
 
 function pad2(n){
   return String(n).padStart(2,"0");
+}
+
+/**
+ * 実在する月日かどうかを判定する(例: 13/1, 2/30, うるう年でない年の2/29など)。
+ * Dateコンストラクタは不正な値を自動的に繰り上げてしまう(例: 2/30→3/2)ため、
+ * resolveDateの結果を元の値と突き合わせて検証する。
+ */
+function isValidMonthDay(month,day){
+  if(month<1||month>12||day<1||day>31)return false;
+  const d=resolveDate(month,day);
+  return d.getMonth()+1===month&&d.getDate()===day;
 }
 
 /**

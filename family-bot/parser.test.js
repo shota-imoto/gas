@@ -26,6 +26,26 @@ describe("parseExpense", () => {
     expect(parseExpense("昼食、abc")).toBeNull();
   });
 
+  it("マイナス金額(相殺)も家計簿として解釈する", () => {
+    expect(parseExpense("精算、-1200")).toEqual({ type: "expense", what: "精算", howMuch: -1200 });
+  });
+
+  it("「=」始まりは四則演算の数式として評価する", () => {
+    expect(parseExpense("精算、=-2500*2")).toEqual({ type: "expense", what: "精算", howMuch: -5000 });
+    expect(parseExpense("精算、=(100+200)*3")).toEqual({ type: "expense", what: "精算", howMuch: 900 });
+    expect(parseExpense("精算、=1000-300")).toEqual({ type: "expense", what: "精算", howMuch: 700 });
+  });
+
+  it("数式の評価結果が整数でなければnull", () => {
+    expect(parseExpense("精算、=2500/3")).toBeNull();
+  });
+
+  it("数式に数字・演算子・丸括弧以外が含まれればnull", () => {
+    expect(parseExpense("精算、=SUM(1,2)")).toBeNull();
+    expect(parseExpense("精算、=1+")).toBeNull();
+    expect(parseExpense("精算、=")).toBeNull();
+  });
+
   it("フィールド数が2でなければnull", () => {
     expect(parseExpense("昼食")).toBeNull();
     expect(parseExpense("昼食、1200、追加")).toBeNull();
@@ -102,6 +122,36 @@ describe("parseCalendar", () => {
     expect(parseCalendar("8/1、1899、焼肉")).toBeNull();
     expect(parseCalendar("8/1、1800-2099、焼肉")).toBeNull();
   });
+
+  it("存在しない月はnull", () => {
+    expect(parseCalendar("13/1、旅行")).toBeNull();
+  });
+
+  it("存在しない日はnull", () => {
+    expect(parseCalendar("8/32、旅行")).toBeNull();
+    expect(parseCalendar("2/30、旅行")).toBeNull();
+  });
+
+  it("複数日の終日で開始日が終了日より後ならnull", () => {
+    expect(parseCalendar("8/5-3、旅行")).toBeNull();
+  });
+
+  it("24時以上の時刻はnull", () => {
+    expect(parseCalendar("8/1、24、焼肉")).toBeNull();
+    expect(parseCalendar("8/1、18-25、焼肉")).toBeNull();
+  });
+
+  it("分省略時の終了時刻が24時を跨ぐのは許容する(23時->翌0時)", () => {
+    expect(parseCalendar("8/1、23、飲み会")).toEqual({
+      type: "calendar", allDay: false, month: 8, day: 1,
+      startHour: 23, startMinute: 0, endHour: 24, endMinute: 0, title: "飲み会",
+    });
+  });
+
+  it("時間指定で終了が開始以前ならnull", () => {
+    expect(parseCalendar("8/1、20-18、焼肉")).toBeNull();
+    expect(parseCalendar("8/1、18-18、焼肉")).toBeNull();
+  });
 });
 
 describe("parseText", () => {
@@ -117,6 +167,12 @@ describe("parseText", () => {
 
   it("どちらでも解釈できなければnull", () => {
     expect(parseText("よくわからないテキスト")).toBeNull();
+  });
+
+  it("先頭が日付形式なら予定名が数字でも家計簿として誤判定しない", () => {
+    expect(parseText("8/1、1200")).toEqual({
+      type: "calendar", allDay: true, month: 8, startDay: 1, endDay: 1, title: "1200",
+    });
   });
 });
 
