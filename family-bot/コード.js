@@ -137,7 +137,7 @@ function doPost(e){
 function tryHandleExpenseMessage(text,userId,replyToken){
   const {value:m,reason}=parseExpenseDetailed(text);
   if(!m)return {handled:false,reason};
-  saveAndReply({message:m,userId},saveExpense,replyToken);
+  saveAndReply({message:m,userId},saveExpense,"すぷ氏にちゅいかできた！",replyToken);
   return {handled:true};
 }
 
@@ -149,18 +149,18 @@ function tryHandleExpenseMessage(text,userId,replyToken){
 function tryHandleCalendarMessage(text,userId,replyToken){
   const {value:m,reason}=parseCalendarDetailed(text);
   if(!m)return {handled:false,reason};
-  saveAndReply({message:m,userId},saveCalendarAndNotify,replyToken);
+  saveAndReply({message:m,userId},saveCalendarAndNotify,"予定ちゅいかできた！",replyToken);
   return {handled:true};
 }
 
 /**
  * 保存処理を実行し、成功/失敗を送信者本人にLINEで返信する共通処理
- * (家計簿・カレンダーで保存関数だけが異なるため、saveをパラメータとして受け取る)。
+ * (家計簿・カレンダーで保存関数と成功時の文言だけが異なるため、両方パラメータとして受け取る)。
  */
-function saveAndReply(content,save,replyToken){
+function saveAndReply(content,save,successMessage,replyToken){
   try{
     save(content);
-    replyLineMessage(replyToken,"ぱぱぱぱ");
+    replyLineMessage(replyToken,successMessage);
   }catch(err){
     console.error(`保存処理でエラーが発生しました (userId=${content.userId}): ${err}`);
     replyLineMessage(replyToken,"書き込みにしっぱい😔入力は正しいから、開発側の調査が必要ちゅ🤔");
