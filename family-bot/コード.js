@@ -28,69 +28,39 @@ function listKnownUserIds(){
 
 // ===== テスト =====
 
-// 家計簿
-function testExpense() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"昼食、1200"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
+/**
+ * GASエディタの関数選択ドロップダウンから個別に実行できるよう、testXxxは
+ * 関数として残しつつ、中身(doPost呼び出し用のダミーイベント組み立て)はここに集約する。
+ */
+function testSend(text){
+  doPost({postData:{contents:JSON.stringify({
+    events:[{message:{type:"text",text},source:{type:"user",userId:"TEST"}}]
+  })}});
 }
+
+// 家計簿
+function testExpense(){ testSend("昼食、1200"); }
 
 // 終日 (単日) 例: 8/1、予定名
-function testCalendarAllDaySingle() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、旅行"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarAllDaySingle(){ testSend("8/1、旅行"); }
 
 // 終日 (複数日) 例: 8/1-3、予定名
-function testCalendarAllDayMulti() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1-3、旅行"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarAllDayMulti(){ testSend("8/1-3、旅行"); }
 
 // 時間指定 (1時間) 例: 8/1、18、予定名 -> 18:00-19:00
-function testCalendarTimedSingleHour() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、18、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedSingleHour(){ testSend("8/1、18、焼肉"); }
 
 // 時間指定 (範囲) 例: 8/1、18-20、予定名 -> 18:00-20:00
-function testCalendarTimedRange() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、18-20、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedRange(){ testSend("8/1、18-20、焼肉"); }
 
 // 時間指定 (分単位) 例: 8/1、1830、予定名 -> 18:30-19:30
-function testCalendarTimedMinute() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、1830、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedMinute(){ testSend("8/1、1830、焼肉"); }
 
 // 時間指定 (分単位・範囲) 例: 8/1、1830-2015、予定名
-function testCalendarTimedMinuteRange() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、1830-2015、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedMinuteRange(){ testSend("8/1、1830-2015、焼肉"); }
 
 // 区切り文字にカンマ・スペースを使った例
-function testCalendarAltDelimiters() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1, 18-20, 焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarAltDelimiters(){ testSend("8/1, 18-20, 焼肉"); }
 
 /**
  * 入力形式が正しくない場合や保存処理に失敗した場合、送信者本人にLINEで返信する。
@@ -240,27 +210,32 @@ function notifyOtherFamilyMembers(content){
 
   const text=formatCalendarNotification(content.message,senderName);
 
-  targetIds.forEach(to=>pushLineMessage(to,text,LINE_CHANNEL_ACCESS_TOKEN));
+  targetIds.forEach(to=>pushLineMessage(to,text));
 }
 
 /**
- * LINEのpush message APIを呼び出す。
- * トークンが無効等でリクエスト自体は成功してもAPIがエラーを返すことがあるため、
- * レスポンスコードを確認し、失敗時はStackdriverにエラーとして記録する
- * (トークンなど機密情報はログに出力しない)。
+ * LINE Messaging APIを呼び出し、失敗時はStackdriverにエラーとして記録する
+ * (トークンなど機密情報はログに出力しない)。push/replyで共通のHTTP呼び出し部分をまとめたもの。
  */
-function pushLineMessage(to,text,token){
-  const res=UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push",{
+function callLineMessagingApi(endpoint,payload,errorLabel){
+  const res=UrlFetchApp.fetch(`https://api.line.me/v2/bot/message/${endpoint}`,{
     method:"post",
     contentType:"application/json",
-    headers:{Authorization:`Bearer ${token}`},
-    payload:JSON.stringify({to,messages:[{type:"text",text}]}),
+    headers:{Authorization:`Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`},
+    payload:JSON.stringify(payload),
     muteHttpExceptions:true,
   });
   const code=res.getResponseCode();
   if(code<200||code>=300){
-    console.error(`LINE通知の送信に失敗しました (to=${to}, status=${code}): ${res.getContentText()}`);
+    console.error(`${errorLabel} (status=${code}): ${res.getContentText()}`);
   }
+}
+
+/**
+ * LINEのpush message APIを呼び出す(家族への通知用)。
+ */
+function pushLineMessage(to,text){
+  callLineMessagingApi("push",{to,messages:[{type:"text",text}]},`LINE通知の送信に失敗しました (to=${to})`);
 }
 
 /**
@@ -269,16 +244,5 @@ function pushLineMessage(to,text,token){
  */
 function replyLineMessage(replyToken,text){
   if(!LINE_CHANNEL_ACCESS_TOKEN||!replyToken)return;
-
-  const res=UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply",{
-    method:"post",
-    contentType:"application/json",
-    headers:{Authorization:`Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`},
-    payload:JSON.stringify({replyToken,messages:[{type:"text",text}]}),
-    muteHttpExceptions:true,
-  });
-  const code=res.getResponseCode();
-  if(code<200||code>=300){
-    console.error(`LINE返信の送信に失敗しました (status=${code}): ${res.getContentText()}`);
-  }
+  callLineMessagingApi("reply",{replyToken,messages:[{type:"text",text}]},"LINE返信の送信に失敗しました");
 }

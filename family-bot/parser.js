@@ -16,6 +16,12 @@ function splitFields(text){
   return text.split(/[、,，\s]+/).filter(s=>s.length>0);
 }
 
+// カレンダーの日付表記(例: 8/1, 8/1-3)。parseCalendarDetailedとshouldTryCalendarFirstで共有する。
+const CALENDAR_DATE_PATTERN=/^(\d{1,2})\/(\d{1,2})(?:-(\d{1,2}))?$/;
+// 時刻トークン(例: 18, 18-20)。時間指定パターンのhourPartと、終日パターンで予定名が
+// 時刻の書き忘れっぽいかどうかの判定の両方で使う。
+const TIME_TOKEN_PATTERN=/^(\d{1,4})(?:-(\d{1,4}))?$/;
+
 function parseExpense(text){
   return parseExpenseDetailed(text).value;
 }
@@ -96,7 +102,7 @@ function parseCalendarDetailed(text){
   // 終日パターン: 日付、予定名
   if(s.length===2){
     const [datePart,title]=s;
-    const dm=datePart.match(/^(\d{1,2})\/(\d{1,2})(?:-(\d{1,2}))?$/);
+    const dm=datePart.match(CALENDAR_DATE_PATTERN);
     if(!dm){
       return {value:null,reason:"日付は「8/1」や「8/1-3」の形で書いてほちい"};
     }
@@ -114,7 +120,7 @@ function parseCalendarDetailed(text){
     }
     // 予定名が時刻っぽい形式(例: 1645、1645-1700)の場合、時刻指定を書き忘れて
     // 終日予定になってしまっている可能性が高いため、誤登録を防ぐためにエラーとする
-    if(/^\d{1,4}(-\d{1,4})?$/.test(title)){
+    if(TIME_TOKEN_PATTERN.test(title)){
       return {value:null,reason:"予定名が時刻っぽいから、日付・時刻・予定名の3つに分けて書いてほちい(例: 8/18、1645-1700、予定名)"};
     }
     return {value:{type:"calendar",allDay:true,month,startDay,endDay,title},reason:null};
@@ -133,7 +139,7 @@ function parseCalendarDetailed(text){
       return {value:null,reason:REASON_DATE_NOT_EXIST};
     }
 
-    const hm=hourPart.match(/^(\d{1,4})(?:-(\d{1,4}))?$/);
+    const hm=hourPart.match(TIME_TOKEN_PATTERN);
     if(!hm){
       return {value:null,reason:"時刻は「18」や「18-20」の形で書いてほちい"};
     }
@@ -174,7 +180,7 @@ function parseCalendarDetailed(text){
 function shouldTryCalendarFirst(text){
   const s=splitFields(text);
   if(s.length===3)return true;
-  return s.length===2&&/^\d{1,2}\/\d{1,2}(-\d{1,2})?$/.test(s[0]);
+  return s.length===2&&CALENDAR_DATE_PATTERN.test(s[0]);
 }
 
 /**
