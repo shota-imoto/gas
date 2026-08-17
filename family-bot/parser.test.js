@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { splitFields, parseExpense, parseCalendar, looksLikeCalendarDate, resolveDate, formatCalendarNotification } from "./parser.js";
+import { splitFields, parseExpense, parseCalendar, parseCalendarDetailed, shouldTryCalendarFirst, resolveDate, formatCalendarNotification } from "./parser.js";
 
 describe("splitFields", () => {
   it("全角読点で区切る", () => {
@@ -90,6 +90,16 @@ describe("parseCalendar", () => {
     expect(parseCalendar("8月1日、旅行")).toBeNull();
   });
 
+  it("時刻にコロン区切り(16:45-17:00)を使うとnull", () => {
+    expect(parseCalendar("8/18,16:45-17:00,テスト")).toBeNull();
+  });
+
+  it("時刻にコロン区切りを使った場合、時刻フォーマットの理由が返る(家計簿の理由に化けない)", () => {
+    expect(parseCalendarDetailed("8/18,16:45-17:00,テスト").reason).toBe(
+      "時刻は「18」や「18-20」の形で書いてほちい"
+    );
+  });
+
   it("分指定(3桁・1時間): 8/1、830、焼肉 -> 8:30-9:30", () => {
     expect(parseCalendar("8/1、830、焼肉")).toEqual({
       type: "calendar", allDay: false, month: 8, day: 1,
@@ -154,23 +164,27 @@ describe("parseCalendar", () => {
   });
 });
 
-describe("looksLikeCalendarDate", () => {
-  it("先頭要素が日付形式(M/D)ならtrue", () => {
-    expect(looksLikeCalendarDate("8/1、1200")).toBe(true);
-    expect(looksLikeCalendarDate("8/1、旅行")).toBe(true);
+describe("shouldTryCalendarFirst", () => {
+  it("2要素で先頭要素が日付形式(M/D)ならtrue", () => {
+    expect(shouldTryCalendarFirst("8/1、1200")).toBe(true);
+    expect(shouldTryCalendarFirst("8/1、旅行")).toBe(true);
   });
 
-  it("先頭要素が日付形式(M/D-D)でもtrue", () => {
-    expect(looksLikeCalendarDate("8/1-3、旅行")).toBe(true);
+  it("2要素で先頭要素が日付形式(M/D-D)でもtrue", () => {
+    expect(shouldTryCalendarFirst("8/1-3、旅行")).toBe(true);
   });
 
-  it("先頭要素が日付形式でなければfalse", () => {
-    expect(looksLikeCalendarDate("昼食、1200")).toBe(false);
+  it("2要素で先頭要素が日付形式でなければfalse", () => {
+    expect(shouldTryCalendarFirst("昼食、1200")).toBe(false);
   });
 
-  it("要素数が2でなければfalse", () => {
-    expect(looksLikeCalendarDate("よくわからないテキスト")).toBe(false);
-    expect(looksLikeCalendarDate("8/1、18、焼肉")).toBe(false);
+  it("3要素なら常にtrue(家計簿は必ず2要素なので3要素は家計簿になり得ない)", () => {
+    expect(shouldTryCalendarFirst("8/1、18、焼肉")).toBe(true);
+    expect(shouldTryCalendarFirst("8/18,16:45-17:00,テスト")).toBe(true);
+  });
+
+  it("要素数が2でも3でもなければfalse", () => {
+    expect(shouldTryCalendarFirst("よくわからないテキスト")).toBe(false);
   });
 });
 

@@ -160,14 +160,15 @@ function parseCalendarDetailed(text){
 }
 
 /**
- * 「日付、〇〇」のように先頭要素が日付形式(M/DまたはM/D-D)の2要素かどうかを判定する。
- * 家計簿(品目、金額)とカレンダー終日(日付、予定名)はどちらも2要素になり得るため、
- * 呼び出し側(doPost)がexpense/calendarどちらを先に試すか決めるために使う。
- * (parseExpenseは先頭要素の形式を問わないため、「8/1、1200」のように予定名が数字の
- * カレンダー入力を、判定順序だけで家計簿として誤って飲み込んでしまうのを防ぐ)
+ * expense/calendarどちらを先に試すか(=どちらの失敗理由を優先して表示するか)を判定する。
+ * 家計簿は必ず2要素(品目、金額)なので、3要素の入力は家計簿には成り得ず、常にカレンダー
+ * (時間指定パターン)を先に試す。2要素の場合は、先頭要素が日付形式(M/DまたはM/D-D)かどうかで
+ * 判定する(parseExpenseは先頭要素の形式を問わないため、「8/1、1200」のように予定名が数字の
+ * カレンダー入力を、判定順序だけで家計簿として誤って飲み込んでしまうのを防ぐ)。
  */
-function looksLikeCalendarDate(text){
+function shouldTryCalendarFirst(text){
   const s=splitFields(text);
+  if(s.length===3)return true;
   return s.length===2&&/^\d{1,2}\/\d{1,2}(-\d{1,2})?$/.test(s[0]);
 }
 
@@ -216,5 +217,5 @@ function formatCalendarNotification(m,senderName){
 }
 
 if(typeof module!=="undefined"&&module.exports){
-  module.exports={splitFields,parseExpense,parseExpenseDetailed,parseCalendar,parseCalendarDetailed,looksLikeCalendarDate,resolveDate,formatCalendarNotification};
+  module.exports={splitFields,parseExpense,parseExpenseDetailed,parseCalendar,parseCalendarDetailed,shouldTryCalendarFirst,resolveDate,formatCalendarNotification};
 }

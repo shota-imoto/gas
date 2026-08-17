@@ -101,8 +101,9 @@ function testCalendarAltDelimiters() {
  * 家計簿とカレンダーはドメインロジックが全く異なるため、共通のパーサーに通してtypeで
  * 分岐するのではなく、tryHandleExpenseMessage/tryHandleCalendarMessageというそれぞれ専用の
  * 関数を用意し、自分のフォーマットに合うかを自分でパースして判断させる({handled:false,reason}を
- * 返し、doPost側が次の候補を試す)。looksLikeCalendarDateで先に試す順番だけ決めているのは、
+ * 返し、doPost側が次の候補を試す)。shouldTryCalendarFirstで先に試す順番だけ決めているのは、
  * 「8/1、1200」のように2要素目が数字のカレンダー入力を家計簿として誤って飲み込むのを防ぐため。
+ * (家計簿は必ず2要素なので3要素の入力は家計簿になり得ず、常にカレンダーを先に試す)
  * 両方とも解釈できなかった場合、最初に試した(=入力から最も意図が近いと推測した)方の理由を返信する。
  */
 function doPost(e){
@@ -115,7 +116,7 @@ function doPost(e){
   const userId=ev.source.userId;
   const replyToken=ev.replyToken;
 
-  const handlers=looksLikeCalendarDate(text)
+  const handlers=shouldTryCalendarFirst(text)
     ?[tryHandleCalendarMessage,tryHandleExpenseMessage]
     :[tryHandleExpenseMessage,tryHandleCalendarMessage];
 
