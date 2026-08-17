@@ -112,6 +112,11 @@ function parseCalendarDetailed(text){
     if(!title){
       return {value:null,reason:REASON_TITLE_MISSING};
     }
+    // 予定名が時刻っぽい形式(例: 1645、1645-1700)の場合、時刻指定を書き忘れて
+    // 終日予定になってしまっている可能性が高いため、誤登録を防ぐためにエラーとする
+    if(/^\d{1,4}(-\d{1,4})?$/.test(title)){
+      return {value:null,reason:"予定名が時刻っぽいから、日付・時刻・予定名の3つに分けて書いてほちい(例: 8/18、1645-1700、予定名)"};
+    }
     return {value:{type:"calendar",allDay:true,month,startDay,endDay,title},reason:null};
   }
 

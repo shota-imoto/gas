@@ -100,6 +100,11 @@ describe("parseCalendar", () => {
     );
   });
 
+  it("終日パターンで予定名を書き忘れ、時刻っぽい文字列がそのまま予定名になった場合はnull", () => {
+    expect(parseCalendar("8/18,1645-1700")).toBeNull();
+    expect(parseCalendar("8/18、1645")).toBeNull();
+  });
+
   it("分指定(3桁・1時間): 8/1、830、焼肉 -> 8:30-9:30", () => {
     expect(parseCalendar("8/1、830、焼肉")).toEqual({
       type: "calendar", allDay: false, month: 8, day: 1,
