@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { splitFields, parseExpense, parseCalendar, parseText, resolveDate, formatCalendarNotification } from "./parser.js";
+import { splitFields, parseExpense, parseCalendar, looksLikeCalendarDate, resolveDate, formatCalendarNotification } from "./parser.js";
 
 describe("splitFields", () => {
   it("全角読点で区切る", () => {
@@ -154,25 +154,23 @@ describe("parseCalendar", () => {
   });
 });
 
-describe("parseText", () => {
-  it("家計簿として解釈できればexpenseを返す", () => {
-    expect(parseText("昼食、1200")).toEqual({ type: "expense", what: "昼食", howMuch: 1200 });
+describe("looksLikeCalendarDate", () => {
+  it("先頭要素が日付形式(M/D)ならtrue", () => {
+    expect(looksLikeCalendarDate("8/1、1200")).toBe(true);
+    expect(looksLikeCalendarDate("8/1、旅行")).toBe(true);
   });
 
-  it("家計簿として解釈できなければcalendarとして解釈する", () => {
-    expect(parseText("8/1、旅行")).toEqual({
-      type: "calendar", allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行",
-    });
+  it("先頭要素が日付形式(M/D-D)でもtrue", () => {
+    expect(looksLikeCalendarDate("8/1-3、旅行")).toBe(true);
   });
 
-  it("どちらでも解釈できなければnull", () => {
-    expect(parseText("よくわからないテキスト")).toBeNull();
+  it("先頭要素が日付形式でなければfalse", () => {
+    expect(looksLikeCalendarDate("昼食、1200")).toBe(false);
   });
 
-  it("先頭が日付形式なら予定名が数字でも家計簿として誤判定しない", () => {
-    expect(parseText("8/1、1200")).toEqual({
-      type: "calendar", allDay: true, month: 8, startDay: 1, endDay: 1, title: "1200",
-    });
+  it("要素数が2でなければfalse", () => {
+    expect(looksLikeCalendarDate("よくわからないテキスト")).toBe(false);
+    expect(looksLikeCalendarDate("8/1、18、焼肉")).toBe(false);
   });
 });
 

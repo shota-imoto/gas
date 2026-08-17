@@ -4,6 +4,9 @@ const TARGET = {
   calendarId: PropertiesService.getScriptProperties().getProperty("CALENDAR_ID")
 };
 
+// LINE_CHANNEL_ACCESS_TOKENは複数の関数から参照するため、スクリプト読み込み時に一度だけ取得しておく
+const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+
 // ===== ユーティリティ =====
 
 /**
@@ -94,6 +97,13 @@ function testCalendarAltDelimiters() {
  * 家計簿・カレンダーどちらも登録が成功した場合、登録できたことが送信者本人に伝わるよう返信する。
  * 複数イベントの一括通知やWebhook検証イベント(events:[])、テキスト以外のメッセージは
  * 対象外とし、これまで通り何もしない(返信先が曖昧なため)。
+ *
+ * 家計簿とカレンダーはドメインロジックが全く異なるため、共通のパーサーに通してtypeで
+ * 分岐するのではなく、tryHandleExpenseMessage/tryHandleCalendarMessageというそれぞれ専用の
+ * 関数を用意し、自分のフォーマットに合うかを自分でパースして判断させる({handled:false,reason}を
+ * 返し、doPost側が次の候補を試す)。looksLikeCalendarDateで先に試す順番だけ決めているのは、
+ * 「8/1、1200」のように2要素目が数字のカレンダー入力を家計簿として誤って飲み込むのを防ぐため。
+ * 両方とも解釈できなかった場合、最初に試した(=入力から最も意図が近いと推測した)方の理由を返信する。
  */
 function doPost(e){
   const p=JSON.parse(e.postData.contents);
@@ -101,23 +111,57 @@ function doPost(e){
   const ev=p.events[0];
   if(!ev.message||ev.message.type!=="text")return;
 
-  const replyToken=ev.replyToken;
+  const text=ev.message.text;
   const userId=ev.source.userId;
-  const m=parseText(ev.message.text);
-  if(!m){
-    replyLineMessage(replyToken,"入力間違いあるから見直ちて！");
-    return;
-  }
+  const replyToken=ev.replyToken;
 
-  const content={message:m,userId};
+  const handlers=looksLikeCalendarDate(text)
+    ?[tryHandleCalendarMessage,tryHandleExpenseMessage]
+    :[tryHandleExpenseMessage,tryHandleCalendarMessage];
+
+  const reasons=[];
+  for(const handler of handlers){
+    const result=handler(text,userId,replyToken);
+    if(result.handled)return;
+    reasons.push(result.reason);
+  }
+  replyLineMessage(replyToken,`入力間違いあるから見直ちて！\n${reasons[0]}`);
+}
+
+/**
+ * テキストを家計簿として解釈できれば保存・返信まで行い{handled:true}を返す。
+ * 解釈できなければ何もせず{handled:false,reason}を返す(呼び出し元が他の形式を試したり、
+ * 失敗理由を送信者に伝えたりできるようにするため)。
+ */
+function tryHandleExpenseMessage(text,userId,replyToken){
+  const {value:m,reason}=parseExpenseDetailed(text);
+  if(!m)return {handled:false,reason};
+  saveAndReply({message:m,userId},saveExpense,replyToken);
+  return {handled:true};
+}
+
+/**
+ * テキストをカレンダー予定として解釈できれば保存・返信まで行い{handled:true}を返す。
+ * 解釈できなければ何もせず{handled:false,reason}を返す(呼び出し元が他の形式を試したり、
+ * 失敗理由を送信者に伝えたりできるようにするため)。
+ */
+function tryHandleCalendarMessage(text,userId,replyToken){
+  const {value:m,reason}=parseCalendarDetailed(text);
+  if(!m)return {handled:false,reason};
+  saveAndReply({message:m,userId},saveCalendarAndNotify,replyToken);
+  return {handled:true};
+}
+
+/**
+ * 保存処理を実行し、成功/失敗を送信者本人にLINEで返信する共通処理
+ * (家計簿・カレンダーで保存関数だけが異なるため、saveをパラメータとして受け取る)。
+ */
+function saveAndReply(content,save,replyToken){
   try{
-    switch(m.type){
-      case "expense": saveExpense(content); break;
-      case "calendar": handleCalendar(content); break;
-    }
+    save(content);
     replyLineMessage(replyToken,"ぱぱぱぱ");
   }catch(err){
-    console.error(`保存処理でエラーが発生しました (userId=${userId}): ${err}`);
+    console.error(`保存処理でエラーが発生しました (userId=${content.userId}): ${err}`);
     replyLineMessage(replyToken,"書き込みにしっぱい😔入力は正しいから、開発側の調査が必要ちゅ🤔");
   }
 }
@@ -142,9 +186,11 @@ function saveExpense(content){
  * カレンダー予定をスプレッドシートに保存し、追加した本人以外の家族メンバーへLINE通知する。
  * 通知(notifyOtherFamilyMembers)の失敗は保存自体の失敗と区別するためここで握りつぶし、
  * ログにのみ残す(呼び出し元のtry/catchで「保存に失敗しました」と誤って返信されないようにする)。
+ * (tryHandleCalendarMessageと名前が紛らわしくならないよう、保存+通知の実処理であることが
+ * わかる名前にしている)
  * @param {CalendarContent} content
  */
-function handleCalendar(content){
+function saveCalendarAndNotify(content){
   saveCalendar(content);
   try{
     notifyOtherFamilyMembers(content);
@@ -183,9 +229,8 @@ function saveCalendar(content){
  * @param {CalendarContent} content
  */
 function notifyOtherFamilyMembers(content){
-  const token=getLineChannelAccessToken();
   const membersJson=PropertiesService.getScriptProperties().getProperty("FAMILY_MEMBERS");
-  if(!token||!membersJson)return;
+  if(!LINE_CHANNEL_ACCESS_TOKEN||!membersJson)return;
 
   const members=JSON.parse(membersJson); // {"userId":"名前", ...}
   const senderName=members[content.userId]??null;
@@ -194,11 +239,7 @@ function notifyOtherFamilyMembers(content){
 
   const text=formatCalendarNotification(content.message,senderName);
 
-  targetIds.forEach(to=>pushLineMessage(to,text,token));
-}
-
-function getLineChannelAccessToken(){
-  return PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+  targetIds.forEach(to=>pushLineMessage(to,text,LINE_CHANNEL_ACCESS_TOKEN));
 }
 
 /**
@@ -226,13 +267,12 @@ function pushLineMessage(to,text,token){
  * LINE_CHANNEL_ACCESS_TOKENが未設定、またはreplyTokenが無い場合(テスト実行など)は何もしない。
  */
 function replyLineMessage(replyToken,text){
-  const token=getLineChannelAccessToken();
-  if(!token||!replyToken)return;
+  if(!LINE_CHANNEL_ACCESS_TOKEN||!replyToken)return;
 
   const res=UrlFetchApp.fetch("https://api.line.me/v2/bot/message/reply",{
     method:"post",
     contentType:"application/json",
-    headers:{Authorization:`Bearer ${token}`},
+    headers:{Authorization:`Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`},
     payload:JSON.stringify({replyToken,messages:[{type:"text",text}]}),
     muteHttpExceptions:true,
   });
