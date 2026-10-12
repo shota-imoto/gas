@@ -67,3 +67,12 @@ LINE Messaging APIのWebhook URLがこのApps ScriptのデプロイURLを直接�
 ```
 npm test
 ```
+
+## フォーマット
+
+Prettierで整形する。整形されていない場合はCI（`test.yml`）が失敗する。
+
+```
+npm run format         # 整形する
+npm run format:check   # 整形済みか確認だけする
+```

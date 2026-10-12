@@ -5,10 +5,13 @@
     "clasp": "clasp",
     "test": "vitest run",
     "setup": "bash scripts/setup.sh",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@google/clasp": "3.3.0",
+    "prettier": "3.9.10",
     "vitest": "4.1.10"
   }
 }
