@@ -4,6 +4,9 @@ const TARGET = {
   calendarId: PropertiesService.getScriptProperties().getProperty("CALENDAR_ID")
 };
 
+// LINE_CHANNEL_ACCESS_TOKENは複数の関数から参照するため、スクリプト読み込み時に一度だけ取得しておく
+const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN");
+
 // ===== ユーティリティ =====
 
 /**
@@ -25,87 +28,110 @@ function listKnownUserIds(){
 
 // ===== テスト =====
 
-// 家計簿
-function testExpense() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"昼食、1200"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
+/**
+ * GASエディタの関数選択ドロップダウンから個別に実行できるよう、testXxxは
+ * 関数として残しつつ、中身(doPost呼び出し用のダミーイベント組み立て)はここに集約する。
+ */
+function testSend(text){
+  doPost({postData:{contents:JSON.stringify({
+    events:[{message:{type:"text",text},source:{type:"user",userId:"TEST"}}]
+  })}});
 }
+
+// 家計簿
+function testExpense(){ testSend("昼食、1200"); }
 
 // 終日 (単日) 例: 8/1、予定名
-function testCalendarAllDaySingle() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、旅行"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarAllDaySingle(){ testSend("8/1、旅行"); }
 
 // 終日 (複数日) 例: 8/1-3、予定名
-function testCalendarAllDayMulti() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1-3、旅行"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarAllDayMulti(){ testSend("8/1-3、旅行"); }
 
 // 時間指定 (1時間) 例: 8/1、18、予定名 -> 18:00-19:00
-function testCalendarTimedSingleHour() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、18、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedSingleHour(){ testSend("8/1、18、焼肉"); }
 
 // 時間指定 (範囲) 例: 8/1、18-20、予定名 -> 18:00-20:00
-function testCalendarTimedRange() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、18-20、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedRange(){ testSend("8/1、18-20、焼肉"); }
 
 // 時間指定 (分単位) 例: 8/1、1830、予定名 -> 18:30-19:30
-function testCalendarTimedMinute() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、1830、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedMinute(){ testSend("8/1、1830、焼肉"); }
 
 // 時間指定 (分単位・範囲) 例: 8/1、1830-2015、予定名
-function testCalendarTimedMinuteRange() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1、1830-2015、焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarTimedMinuteRange(){ testSend("8/1、1830-2015、焼肉"); }
 
 // 区切り文字にカンマ・スペースを使った例
-function testCalendarAltDelimiters() {
-  const e = {postData:{contents:JSON.stringify({
-    events:[{message:{type:"text",text:"8/1, 18-20, 焼肉"},source:{type:"user",userId:"TEST"}}]
-  })}};
-  doPost(e);
-}
+function testCalendarAltDelimiters(){ testSend("8/1, 18-20, 焼肉"); }
 
+/**
+ * 入力形式が正しくない場合や保存処理に失敗した場合、送信者本人にLINEで返信する。
+ * 家計簿・カレンダーどちらも登録が成功した場合、登録できたことが送信者本人に伝わるよう返信する。
+ * 複数イベントの一括通知やWebhook検証イベント(events:[])、テキスト以外のメッセージは
+ * 対象外とし、これまで通り何もしない(返信先が曖昧なため)。
+ *
+ * 家計簿とカレンダーはドメインロジックが全く異なるため、共通のパーサーに通してtypeで
+ * 分岐するのではなく、handleExpenseMessage/handleCalendarMessageというそれぞれ専用の
+ * 関数を用意し、resolveMessageHandlerで入力に応じて実行すべき方を1つ選ぶ。
+ */
 function doPost(e){
-  const content=parseContents(e.postData.contents);
-  if(!content)return;
-  switch(content.message.type){
-    case "expense": saveExpense(content); break;
-    case "calendar": handleCalendar(content); break;
-  }
+  const p=JSON.parse(e.postData.contents);
+  if(p.events.length!==1)return;
+  const ev=p.events[0];
+  if(!ev.message||ev.message.type!=="text")return;
+
+  const text=ev.message.text;
+  const handle=resolveMessageHandler(text);
+  handle(text,ev.source.userId,ev.replyToken);
 }
 
-function parseContents(json){
-  const p=JSON.parse(json);
-  if(p.events.length!==1)return null;
-  const e=p.events[0];
-  if(!e.message||e.message.type!=="text")return null;
-  const m=parseText(e.message.text);
-  if(!m)return null;
-  return {message:m,userId:e.source.userId};
+/**
+ * 入力テキストに対して実行すべきハンドラー関数を返す。
+ * 種別の判定(isCalendarMessage)はここで確定させ、選んだ側のパースに失敗しても
+ * もう一方の形式は試さない(例: 「8/18、1645」が家計簿として誤登録されるのを防ぐ)。
+ */
+function resolveMessageHandler(text){
+  return isCalendarMessage(text)?handleCalendarMessage:handleExpenseMessage;
+}
+
+/**
+ * テキストを家計簿としてパースし、成功すれば保存・返信し、失敗すれば理由を返信する。
+ */
+function handleExpenseMessage(text,userId,replyToken){
+  const {isSuccess,value:m,reason}=parseExpenseDetailed(text);
+  if(!isSuccess){
+    replyInputError(replyToken,reason);
+    return;
+  }
+  saveAndReply({message:m,userId},saveExpense,"すぷ氏にちゅいかできた！",replyToken);
+}
+
+/**
+ * テキストをカレンダー予定としてパースし、成功すれば保存・返信し、失敗すれば理由を返信する。
+ */
+function handleCalendarMessage(text,userId,replyToken){
+  const {isSuccess,value:m,reason}=parseCalendarDetailed(text);
+  if(!isSuccess){
+    replyInputError(replyToken,reason);
+    return;
+  }
+  saveAndReply({message:m,userId},saveCalendarAndNotify,"予定ちゅいかできた！",replyToken);
+}
+
+function replyInputError(replyToken,reason){
+  replyLineMessage(replyToken,`入力間違いあるから見直ちて！\n${reason}`);
+}
+
+/**
+ * 保存処理を実行し、成功/失敗を送信者本人にLINEで返信する共通処理
+ * (家計簿・カレンダーで保存関数と成功時の文言だけが異なるため、両方パラメータとして受け取る)。
+ */
+function saveAndReply(content,save,successMessage,replyToken){
+  try{
+    save(content);
+    replyLineMessage(replyToken,successMessage);
+  }catch(err){
+    console.error(`保存処理でエラーが発生しました (userId=${content.userId}): ${err}`);
+    replyLineMessage(replyToken,"書き込みにしっぱい😔入力は正しいから、開発側の調査が必要ちゅ🤔");
+  }
 }
 
 function saveExpense(content){
@@ -126,11 +152,19 @@ function saveExpense(content){
 
 /**
  * カレンダー予定をスプレッドシートに保存し、追加した本人以外の家族メンバーへLINE通知する。
+ * 通知(notifyOtherFamilyMembers)の失敗は保存自体の失敗と区別するためここで握りつぶし、
+ * ログにのみ残す(呼び出し元のtry/catchで「保存に失敗しました」と誤って返信されないようにする)。
+ * (handleCalendarMessageと名前が紛らわしくならないよう、保存+通知の実処理であることが
+ * わかる名前にしている)
  * @param {CalendarContent} content
  */
-function handleCalendar(content){
+function saveCalendarAndNotify(content){
   saveCalendar(content);
-  notifyOtherFamilyMembers(content);
+  try{
+    notifyOtherFamilyMembers(content);
+  }catch(err){
+    console.error(`家族への通知処理でエラーが発生しました (userId=${content.userId}): ${err}`);
+  }
 }
 
 function saveCalendar(content){
@@ -163,10 +197,8 @@ function saveCalendar(content){
  * @param {CalendarContent} content
  */
 function notifyOtherFamilyMembers(content){
-  const props=PropertiesService.getScriptProperties();
-  const token=props.getProperty("LINE_CHANNEL_ACCESS_TOKEN");
-  const membersJson=props.getProperty("FAMILY_MEMBERS");
-  if(!token||!membersJson)return;
+  const membersJson=PropertiesService.getScriptProperties().getProperty("FAMILY_MEMBERS");
+  if(!LINE_CHANNEL_ACCESS_TOKEN||!membersJson)return;
 
   const members=JSON.parse(membersJson); // {"userId":"名前", ...}
   const senderName=members[content.userId]??null;
@@ -175,15 +207,39 @@ function notifyOtherFamilyMembers(content){
 
   const text=formatCalendarNotification(content.message,senderName);
 
-  targetIds.forEach(to=>pushLineMessage(to,text,token));
+  targetIds.forEach(to=>pushLineMessage(to,text));
 }
 
-function pushLineMessage(to,text,token){
-  UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push",{
+/**
+ * LINE Messaging APIを呼び出し、失敗時はStackdriverにエラーとして記録する
+ * (トークンなど機密情報はログに出力しない)。push/replyで共通のHTTP呼び出し部分をまとめたもの。
+ */
+function callLineMessagingApi(endpoint,payload,errorLabel){
+  const res=UrlFetchApp.fetch(`https://api.line.me/v2/bot/message/${endpoint}`,{
     method:"post",
     contentType:"application/json",
-    headers:{Authorization:`Bearer ${token}`},
-    payload:JSON.stringify({to,messages:[{type:"text",text}]}),
+    headers:{Authorization:`Bearer ${LINE_CHANNEL_ACCESS_TOKEN}`},
+    payload:JSON.stringify(payload),
     muteHttpExceptions:true,
   });
+  const code=res.getResponseCode();
+  if(code<200||code>=300){
+    console.error(`${errorLabel} (status=${code}): ${res.getContentText()}`);
+  }
+}
+
+/**
+ * LINEのpush message APIを呼び出す(家族への通知用)。
+ */
+function pushLineMessage(to,text){
+  callLineMessagingApi("push",{to,messages:[{type:"text",text}]},`LINE通知の送信に失敗しました (to=${to})`);
+}
+
+/**
+ * LINEのreply message APIを呼び出し、送信者本人にメッセージを返信する。
+ * LINE_CHANNEL_ACCESS_TOKENが未設定、またはreplyTokenが無い場合(テスト実行など)は何もしない。
+ */
+function replyLineMessage(replyToken,text){
+  if(!LINE_CHANNEL_ACCESS_TOKEN||!replyToken)return;
+  callLineMessagingApi("reply",{replyToken,messages:[{type:"text",text}]},"LINE返信の送信に失敗しました");
 }

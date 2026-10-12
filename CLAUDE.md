@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発ルール
 
+- コードの変更に着手する時点で、必ず最初にfeatureブランチを作成すること（mainで直接作業しない）
+  - デプロイ直前ではなく、調査・実装を始める最初のタイミングで作成すること
 - GASのスクリプトプロパティを変更する場合は、@shota-imoto に依頼すること（自分で変更しない）
 - 動作確認をしたい場合は、LINEで連絡した上で、featureブランチを本番環境にデプロイすること
   - 本番環境を動作確認に利用する理由: QA環境をわざわざ用意するのはコストに見合わないため
