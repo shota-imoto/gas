@@ -404,9 +404,10 @@ describe("formatCalendarNotification", () => {
 });
 
 describe("isHelpMessage", () => {
-  it("「ヘルプ」ならtrue(前後の空白は無視)", () => {
+  it("「ヘルプ」「へるぷ」ならtrue(前後の空白は無視)", () => {
     expect(isHelpMessage("ヘルプ")).toBe(true);
     expect(isHelpMessage(" ヘルプ\n")).toBe(true);
+    expect(isHelpMessage("へるぷ")).toBe(true);
   });
 
   it("「ヘルプ」以外ならfalse", () => {

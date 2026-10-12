@@ -250,10 +250,10 @@ function isCalendarMessage(text) {
 }
 
 /**
- * 「ヘルプ」と送られてきたかを判定する(前後の空白は無視する)。
+ * 「ヘルプ」「へるぷ」と送られてきたかを判定する(前後の空白は無視する)。
  */
 function isHelpMessage(text) {
-  return text.trim() === "ヘルプ";
+  return ["ヘルプ", "へるぷ"].includes(text.trim());
 }
 
 // ヘルプで案内する入力例。例文が実際にパースできることをテストで保証するため、
