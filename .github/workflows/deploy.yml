@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       project:
-        description: 'Deploy対象のディレクトリ'
+        description: "Deploy対象のディレクトリ"
         required: true
         type: choice
         options:
