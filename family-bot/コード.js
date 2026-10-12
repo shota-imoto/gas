@@ -69,12 +69,8 @@ function testCalendarAltDelimiters(){ testSend("8/1, 18-20, 焼肉"); }
  * 対象外とし、これまで通り何もしない(返信先が曖昧なため)。
  *
  * 家計簿とカレンダーはドメインロジックが全く異なるため、共通のパーサーに通してtypeで
- * 分岐するのではなく、tryHandleExpenseMessage/tryHandleCalendarMessageというそれぞれ専用の
- * 関数を用意し、自分のフォーマットに合うかを自分でパースして判断させる({handled:false,reason}を
- * 返し、doPost側が次の候補を試す)。shouldTryCalendarFirstで先に試す順番だけ決めているのは、
- * 「8/1、1200」のように2要素目が数字のカレンダー入力を家計簿として誤って飲み込むのを防ぐため。
- * (家計簿は必ず2要素なので3要素の入力は家計簿になり得ず、常にカレンダーを先に試す)
- * 両方とも解釈できなかった場合、最初に試した(=入力から最も意図が近いと推測した)方の理由を返信する。
+ * 分岐するのではなく、handleExpenseMessage/handleCalendarMessageというそれぞれ専用の
+ * 関数を用意し、resolveMessageHandlerで入力に応じて実行すべき方を1つ選ぶ。
  */
 function doPost(e){
   const p=JSON.parse(e.postData.contents);
@@ -83,44 +79,45 @@ function doPost(e){
   if(!ev.message||ev.message.type!=="text")return;
 
   const text=ev.message.text;
-  const userId=ev.source.userId;
-  const replyToken=ev.replyToken;
+  const handle=resolveMessageHandler(text);
+  handle(text,ev.source.userId,ev.replyToken);
+}
 
-  const handlers=shouldTryCalendarFirst(text)
-    ?[tryHandleCalendarMessage,tryHandleExpenseMessage]
-    :[tryHandleExpenseMessage,tryHandleCalendarMessage];
+/**
+ * 入力テキストに対して実行すべきハンドラー関数を返す。
+ * 種別の判定(isCalendarMessage)はここで確定させ、選んだ側のパースに失敗しても
+ * もう一方の形式は試さない(例: 「8/18、1645」が家計簿として誤登録されるのを防ぐ)。
+ */
+function resolveMessageHandler(text){
+  return isCalendarMessage(text)?handleCalendarMessage:handleExpenseMessage;
+}
 
-  const reasons=[];
-  for(const handler of handlers){
-    const result=handler(text,userId,replyToken);
-    if(result.handled)return;
-    reasons.push(result.reason);
+/**
+ * テキストを家計簿としてパースし、成功すれば保存・返信し、失敗すれば理由を返信する。
+ */
+function handleExpenseMessage(text,userId,replyToken){
+  const {isSuccess,value:m,reason}=parseExpenseDetailed(text);
+  if(!isSuccess){
+    replyInputError(replyToken,reason);
+    return;
   }
-  replyLineMessage(replyToken,`入力間違いあるから見直ちて！\n${reasons[0]}`);
-}
-
-/**
- * テキストを家計簿として解釈できれば保存・返信まで行い{handled:true}を返す。
- * 解釈できなければ何もせず{handled:false,reason}を返す(呼び出し元が他の形式を試したり、
- * 失敗理由を送信者に伝えたりできるようにするため)。
- */
-function tryHandleExpenseMessage(text,userId,replyToken){
-  const {value:m,reason}=parseExpenseDetailed(text);
-  if(!m)return {handled:false,reason};
   saveAndReply({message:m,userId},saveExpense,"すぷ氏にちゅいかできた！",replyToken);
-  return {handled:true};
 }
 
 /**
- * テキストをカレンダー予定として解釈できれば保存・返信まで行い{handled:true}を返す。
- * 解釈できなければ何もせず{handled:false,reason}を返す(呼び出し元が他の形式を試したり、
- * 失敗理由を送信者に伝えたりできるようにするため)。
+ * テキストをカレンダー予定としてパースし、成功すれば保存・返信し、失敗すれば理由を返信する。
  */
-function tryHandleCalendarMessage(text,userId,replyToken){
-  const {value:m,reason}=parseCalendarDetailed(text);
-  if(!m)return {handled:false,reason};
+function handleCalendarMessage(text,userId,replyToken){
+  const {isSuccess,value:m,reason}=parseCalendarDetailed(text);
+  if(!isSuccess){
+    replyInputError(replyToken,reason);
+    return;
+  }
   saveAndReply({message:m,userId},saveCalendarAndNotify,"予定ちゅいかできた！",replyToken);
-  return {handled:true};
+}
+
+function replyInputError(replyToken,reason){
+  replyLineMessage(replyToken,`入力間違いあるから見直ちて！\n${reason}`);
 }
 
 /**
@@ -157,7 +154,7 @@ function saveExpense(content){
  * カレンダー予定をスプレッドシートに保存し、追加した本人以外の家族メンバーへLINE通知する。
  * 通知(notifyOtherFamilyMembers)の失敗は保存自体の失敗と区別するためここで握りつぶし、
  * ログにのみ残す(呼び出し元のtry/catchで「保存に失敗しました」と誤って返信されないようにする)。
- * (tryHandleCalendarMessageと名前が紛らわしくならないよう、保存+通知の実処理であることが
+ * (handleCalendarMessageと名前が紛らわしくならないよう、保存+通知の実処理であることが
  * わかる名前にしている)
  * @param {CalendarContent} content
  */

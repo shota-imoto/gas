@@ -16,7 +16,7 @@ function splitFields(text){
   return text.split(/[、,，\s]+/).filter(s=>s.length>0);
 }
 
-// カレンダーの日付表記(例: 8/1, 8/1-3)。parseCalendarDetailedとshouldTryCalendarFirstで共有する。
+// カレンダーの日付表記(例: 8/1, 8/1-3)。parseCalendarDetailedとisCalendarMessageで共有する。
 const CALENDAR_DATE_PATTERN=/^(\d{1,2})\/(\d{1,2})(?:-(\d{1,2}))?$/;
 // 時刻トークン(例: 18, 18-20)。時間指定パターンのhourPartと、終日パターンで予定名が
 // 時刻の書き忘れっぽいかどうかの判定の両方で使う。
@@ -33,13 +33,13 @@ function parseExpense(text){
 function parseExpenseDetailed(text){
   const s=splitFields(text);
   if(s.length!==2){
-    return {value:null,reason:"品目と金額を「、」で区切って書いてほちい(例: 昼食、1200)"};
+    return {isSuccess:false,value:null,reason:"品目と金額の2つに分けて書いてほちい(例: 昼食、1200)"};
   }
   const howMuch=parseExpenseAmount(s[1]);
   if(howMuch===null){
-    return {value:null,reason:"金額のところが数字になってないちゅ(マイナスや「=」の数式もOK)"};
+    return {isSuccess:false,value:null,reason:"金額のところが数字になってないちゅ(マイナスや「=」の数式もOK)"};
   }
-  return {value:{type:"expense",what:s[0],howMuch},reason:null};
+  return {isSuccess:true,value:{type:"expense",what:s[0],howMuch},reason:null};
 }
 
 /**
@@ -104,26 +104,26 @@ function parseCalendarDetailed(text){
     const [datePart,title]=s;
     const dm=datePart.match(CALENDAR_DATE_PATTERN);
     if(!dm){
-      return {value:null,reason:"日付は「8/1」や「8/1-3」の形で書いてほちい"};
+      return {isSuccess:false,value:null,reason:"日付は「8/1」や「8/1-3」の形で書いてほちい"};
     }
     const month=Number(dm[1]);
     const startDay=Number(dm[2]);
     const endDay=dm[3]?Number(dm[3]):startDay;
     if(!isValidMonthDay(month,startDay)||!isValidMonthDay(month,endDay)){
-      return {value:null,reason:REASON_DATE_NOT_EXIST};
+      return {isSuccess:false,value:null,reason:REASON_DATE_NOT_EXIST};
     }
     if(startDay>endDay){
-      return {value:null,reason:"終日の範囲は開始日→終了日の順で書いてほちい"};
+      return {isSuccess:false,value:null,reason:"開始日が終了日より後になってるちゅ"};
     }
     if(!title){
-      return {value:null,reason:REASON_TITLE_MISSING};
+      return {isSuccess:false,value:null,reason:REASON_TITLE_MISSING};
     }
     // 予定名が時刻っぽい形式(例: 1645、1645-1700)の場合、時刻指定を書き忘れて
     // 終日予定になってしまっている可能性が高いため、誤登録を防ぐためにエラーとする
     if(TIME_TOKEN_PATTERN.test(title)){
-      return {value:null,reason:"予定名が時刻っぽいから、日付・時刻・予定名の3つに分けて書いてほちい(例: 8/18、1645-1700、予定名)"};
+      return {isSuccess:false,value:null,reason:"予定名が時刻っぽいから、日付・時刻・予定名の3つに分けて書いてほちい(例: 8/18、1645-1700、予定名)"};
     }
-    return {value:{type:"calendar",allDay:true,month,startDay,endDay,title},reason:null};
+    return {isSuccess:true,value:{type:"calendar",allDay:true,month,startDay,endDay,title},reason:null};
   }
 
   // 時間指定パターン: 日付、時刻、予定名
@@ -131,35 +131,35 @@ function parseCalendarDetailed(text){
     const [datePart,hourPart,title]=s;
     const dm=datePart.match(/^(\d{1,2})\/(\d{1,2})$/);
     if(!dm){
-      return {value:null,reason:"日付は「8/1」の形で書いてほちい"};
+      return {isSuccess:false,value:null,reason:"日付は「8/1」の形で書いてほちい"};
     }
     const month=Number(dm[1]);
     const day=Number(dm[2]);
     if(!isValidMonthDay(month,day)){
-      return {value:null,reason:REASON_DATE_NOT_EXIST};
+      return {isSuccess:false,value:null,reason:REASON_DATE_NOT_EXIST};
     }
 
     const hm=hourPart.match(TIME_TOKEN_PATTERN);
     if(!hm){
-      return {value:null,reason:"時刻は「18」や「18-20」の形で書いてほちい"};
+      return {isSuccess:false,value:null,reason:"時刻は「18」や「18-20」の形で書いてほちい"};
     }
     const start=parseTimeToken(hm[1]);
     const end=hm[2]?parseTimeToken(hm[2]):{hour:start.hour+1,minute:start.minute};
     if(start.minute>59||end.minute>59){
-      return {value:null,reason:"分は0-59の範囲で書いてほちい"};
+      return {isSuccess:false,value:null,reason:"分は0-59の範囲で書いてほちい"};
     }
     // endは分省略時の既定値(start.hour+1)が24を跨ぐことがあるため、明示指定時のみ検証する
     if(start.hour>23||(hm[2]&&end.hour>23)){
-      return {value:null,reason:REASON_HOUR_OUT_OF_RANGE};
+      return {isSuccess:false,value:null,reason:REASON_HOUR_OUT_OF_RANGE};
     }
     if(hm[2]&&end.hour*60+end.minute<=start.hour*60+start.minute){
-      return {value:null,reason:"終了時刻は開始時刻より後にしてほちい"};
+      return {isSuccess:false,value:null,reason:"終了時刻は開始時刻より後にしてほちい"};
     }
     if(!title){
-      return {value:null,reason:REASON_TITLE_MISSING};
+      return {isSuccess:false,value:null,reason:REASON_TITLE_MISSING};
     }
 
-    return {value:{
+    return {isSuccess:true,value:{
       type:"calendar",allDay:false,month,day,
       startHour:start.hour,startMinute:start.minute,
       endHour:end.hour,endMinute:end.minute,
@@ -167,17 +167,17 @@ function parseCalendarDetailed(text){
     },reason:null};
   }
 
-  return {value:null,reason:"「8/1、予定名」か「8/1、18-20、予定名」のような形で書いてほちい"};
+  return {isSuccess:false,value:null,reason:"「8/1、予定名」か「8/1、18-20、予定名」のような形で書いてほちい"};
 }
 
 /**
- * expense/calendarどちらを先に試すか(=どちらの失敗理由を優先して表示するか)を判定する。
- * 家計簿は必ず2要素(品目、金額)なので、3要素の入力は家計簿には成り得ず、常にカレンダー
- * (時間指定パターン)を先に試す。2要素の場合は、先頭要素が日付形式(M/DまたはM/D-D)かどうかで
- * 判定する(parseExpenseは先頭要素の形式を問わないため、「8/1、1200」のように予定名が数字の
- * カレンダー入力を、判定順序だけで家計簿として誤って飲み込んでしまうのを防ぐ)。
+ * 入力がカレンダー登録の意図かどうかを判定する(falseなら家計簿として扱う)。
+ * 家計簿は必ず2要素(品目、金額)なので、3要素の入力はカレンダー(時間指定パターン)とみなす。
+ * 2要素の場合は、先頭要素が日付形式(M/DまたはM/D-D)かどうかで判定する(parseExpenseは先頭要素の
+ * 形式を問わないため、「8/1、1200」のように予定名が数字のカレンダー入力を家計簿として誤って
+ * 飲み込んでしまうのを防ぐ)。ここで種別を確定させ、パースに失敗しても他方の形式は試さない。
  */
-function shouldTryCalendarFirst(text){
+function isCalendarMessage(text){
   const s=splitFields(text);
   if(s.length===3)return true;
   return s.length===2&&CALENDAR_DATE_PATTERN.test(s[0]);
@@ -228,5 +228,5 @@ function formatCalendarNotification(m,senderName){
 }
 
 if(typeof module!=="undefined"&&module.exports){
-  module.exports={splitFields,parseExpense,parseExpenseDetailed,parseCalendar,parseCalendarDetailed,shouldTryCalendarFirst,resolveDate,formatCalendarNotification};
+  module.exports={splitFields,parseExpense,parseExpenseDetailed,parseCalendar,parseCalendarDetailed,isCalendarMessage,resolveDate,formatCalendarNotification};
 }

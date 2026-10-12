@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { splitFields, parseExpense, parseCalendar, parseCalendarDetailed, shouldTryCalendarFirst, resolveDate, formatCalendarNotification } from "./parser.js";
+import { splitFields, parseExpense, parseExpenseDetailed, parseCalendar, parseCalendarDetailed, isCalendarMessage, resolveDate, formatCalendarNotification } from "./parser.js";
 
 describe("splitFields", () => {
   it("全角読点で区切る", () => {
@@ -52,6 +52,20 @@ describe("parseExpense", () => {
   });
 });
 
+describe("parseExpenseDetailed", () => {
+  it("成功時はisSuccess:trueとvalueが返る", () => {
+    expect(parseExpenseDetailed("昼食、1200")).toEqual({
+      isSuccess: true, value: { type: "expense", what: "昼食", howMuch: 1200 }, reason: null,
+    });
+  });
+
+  it("フィールド数が2でなければ、2つに分ける旨の理由が返る", () => {
+    expect(parseExpenseDetailed("あ、い、う")).toEqual({
+      isSuccess: false, value: null, reason: "品目と金額の2つに分けて書いてほちい(例: 昼食、1200)",
+    });
+  });
+});
+
 describe("parseCalendar", () => {
   it("終日(単日): 8/1、旅行", () => {
     expect(parseCalendar("8/1、旅行")).toEqual({
@@ -88,6 +102,13 @@ describe("parseCalendar", () => {
 
   it("日付形式が不正ならnull", () => {
     expect(parseCalendar("8月1日、旅行")).toBeNull();
+  });
+
+  it("成功時はisSuccess:true、失敗時はisSuccess:falseと理由が返る", () => {
+    expect(parseCalendarDetailed("8/1、旅行").isSuccess).toBe(true);
+    expect(parseCalendarDetailed("8/5-3、旅行")).toEqual({
+      isSuccess: false, value: null, reason: "開始日が終了日より後になってるちゅ",
+    });
   });
 
   it("時刻にコロン区切り(16:45-17:00)を使うとnull", () => {
@@ -169,27 +190,27 @@ describe("parseCalendar", () => {
   });
 });
 
-describe("shouldTryCalendarFirst", () => {
+describe("isCalendarMessage", () => {
   it("2要素で先頭要素が日付形式(M/D)ならtrue", () => {
-    expect(shouldTryCalendarFirst("8/1、1200")).toBe(true);
-    expect(shouldTryCalendarFirst("8/1、旅行")).toBe(true);
+    expect(isCalendarMessage("8/1、1200")).toBe(true);
+    expect(isCalendarMessage("8/1、旅行")).toBe(true);
   });
 
   it("2要素で先頭要素が日付形式(M/D-D)でもtrue", () => {
-    expect(shouldTryCalendarFirst("8/1-3、旅行")).toBe(true);
+    expect(isCalendarMessage("8/1-3、旅行")).toBe(true);
   });
 
   it("2要素で先頭要素が日付形式でなければfalse", () => {
-    expect(shouldTryCalendarFirst("昼食、1200")).toBe(false);
+    expect(isCalendarMessage("昼食、1200")).toBe(false);
   });
 
   it("3要素なら常にtrue(家計簿は必ず2要素なので3要素は家計簿になり得ない)", () => {
-    expect(shouldTryCalendarFirst("8/1、18、焼肉")).toBe(true);
-    expect(shouldTryCalendarFirst("8/18,16:45-17:00,テスト")).toBe(true);
+    expect(isCalendarMessage("8/1、18、焼肉")).toBe(true);
+    expect(isCalendarMessage("8/18,16:45-17:00,テスト")).toBe(true);
   });
 
   it("要素数が2でも3でもなければfalse", () => {
-    expect(shouldTryCalendarFirst("よくわからないテキスト")).toBe(false);
+    expect(isCalendarMessage("よくわからないテキスト")).toBe(false);
   });
 });
 
