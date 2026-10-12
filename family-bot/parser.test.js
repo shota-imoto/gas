@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { splitFields, parseExpense, parseExpenseDetailed, parseCalendar, parseCalendarDetailed, isCalendarMessage, resolveDate, formatCalendarNotification } from "./parser.js";
+import {
+  splitFields,
+  parseExpense,
+  parseExpenseDetailed,
+  parseCalendar,
+  parseCalendarDetailed,
+  isCalendarMessage,
+  resolveDate,
+  formatCalendarNotification,
+} from "./parser.js";
 
 describe("splitFields", () => {
   it("全角読点で区切る", () => {
@@ -19,7 +28,11 @@ describe("splitFields", () => {
 
 describe("parseExpense", () => {
   it("「何、金額」を家計簿として解釈する", () => {
-    expect(parseExpense("昼食、1200")).toEqual({ type: "expense", what: "昼食", howMuch: 1200 });
+    expect(parseExpense("昼食、1200")).toEqual({
+      type: "expense",
+      what: "昼食",
+      howMuch: 1200,
+    });
   });
 
   it("金額が数値でなければnull", () => {
@@ -27,13 +40,29 @@ describe("parseExpense", () => {
   });
 
   it("マイナス金額(相殺)も家計簿として解釈する", () => {
-    expect(parseExpense("精算、-1200")).toEqual({ type: "expense", what: "精算", howMuch: -1200 });
+    expect(parseExpense("精算、-1200")).toEqual({
+      type: "expense",
+      what: "精算",
+      howMuch: -1200,
+    });
   });
 
   it("「=」始まりは四則演算の数式として評価する", () => {
-    expect(parseExpense("精算、=-2500*2")).toEqual({ type: "expense", what: "精算", howMuch: -5000 });
-    expect(parseExpense("精算、=(100+200)*3")).toEqual({ type: "expense", what: "精算", howMuch: 900 });
-    expect(parseExpense("精算、=1000-300")).toEqual({ type: "expense", what: "精算", howMuch: 700 });
+    expect(parseExpense("精算、=-2500*2")).toEqual({
+      type: "expense",
+      what: "精算",
+      howMuch: -5000,
+    });
+    expect(parseExpense("精算、=(100+200)*3")).toEqual({
+      type: "expense",
+      what: "精算",
+      howMuch: 900,
+    });
+    expect(parseExpense("精算、=1000-300")).toEqual({
+      type: "expense",
+      what: "精算",
+      howMuch: 700,
+    });
   });
 
   it("数式の評価結果が整数でなければnull", () => {
@@ -55,13 +84,17 @@ describe("parseExpense", () => {
 describe("parseExpenseDetailed", () => {
   it("成功時はisSuccess:trueとvalueが返る", () => {
     expect(parseExpenseDetailed("昼食、1200")).toEqual({
-      isSuccess: true, value: { type: "expense", what: "昼食", howMuch: 1200 }, reason: null,
+      isSuccess: true,
+      value: { type: "expense", what: "昼食", howMuch: 1200 },
+      reason: null,
     });
   });
 
   it("フィールド数が2でなければ、2つに分ける旨の理由が返る", () => {
     expect(parseExpenseDetailed("あ、い、う")).toEqual({
-      isSuccess: false, value: null, reason: "品目と金額の2つに分けて書いてほちい(例: 昼食、1200)",
+      isSuccess: false,
+      value: null,
+      reason: "品目と金額の2つに分けて書いてほちい(例: 昼食、1200)",
     });
   });
 });
@@ -69,34 +102,65 @@ describe("parseExpenseDetailed", () => {
 describe("parseCalendar", () => {
   it("終日(単日): 8/1、旅行", () => {
     expect(parseCalendar("8/1、旅行")).toEqual({
-      type: "calendar", allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行",
+      type: "calendar",
+      allDay: true,
+      month: 8,
+      startDay: 1,
+      endDay: 1,
+      title: "旅行",
     });
   });
 
   it("終日(複数日): 8/1-3、旅行", () => {
     expect(parseCalendar("8/1-3、旅行")).toEqual({
-      type: "calendar", allDay: true, month: 8, startDay: 1, endDay: 3, title: "旅行",
+      type: "calendar",
+      allDay: true,
+      month: 8,
+      startDay: 1,
+      endDay: 3,
+      title: "旅行",
     });
   });
 
   it("時間指定(1時間): 8/1、18、焼肉 -> 18:00-19:00", () => {
     expect(parseCalendar("8/1、18、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 18, startMinute: 0, endHour: 19, endMinute: 0, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 0,
+      endHour: 19,
+      endMinute: 0,
+      title: "焼肉",
     });
   });
 
   it("時間指定(範囲): 8/1、18-20、焼肉 -> 18:00-20:00", () => {
     expect(parseCalendar("8/1、18-20、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 18, startMinute: 0, endHour: 20, endMinute: 0, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 0,
+      endHour: 20,
+      endMinute: 0,
+      title: "焼肉",
     });
   });
 
   it("区切り文字にカンマ・スペースを使っても解釈できる", () => {
     expect(parseCalendar("8/1, 18-20, 焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 18, startMinute: 0, endHour: 20, endMinute: 0, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 0,
+      endHour: 20,
+      endMinute: 0,
+      title: "焼肉",
     });
   });
 
@@ -107,7 +171,9 @@ describe("parseCalendar", () => {
   it("成功時はisSuccess:true、失敗時はisSuccess:falseと理由が返る", () => {
     expect(parseCalendarDetailed("8/1、旅行").isSuccess).toBe(true);
     expect(parseCalendarDetailed("8/5-3、旅行")).toEqual({
-      isSuccess: false, value: null, reason: "開始日が終了日より後になってるちゅ",
+      isSuccess: false,
+      value: null,
+      reason: "開始日が終了日より後になってるちゅ",
     });
   });
 
@@ -117,7 +183,7 @@ describe("parseCalendar", () => {
 
   it("時刻にコロン区切りを使った場合、時刻フォーマットの理由が返る(家計簿の理由に化けない)", () => {
     expect(parseCalendarDetailed("8/18,16:45-17:00,テスト").reason).toBe(
-      "時刻は「18」や「18-20」の形で書いてほちい"
+      "時刻は「18」や「18-20」の形で書いてほちい",
     );
   });
 
@@ -128,29 +194,57 @@ describe("parseCalendar", () => {
 
   it("分指定(3桁・1時間): 8/1、830、焼肉 -> 8:30-9:30", () => {
     expect(parseCalendar("8/1、830、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 8, startMinute: 30, endHour: 9, endMinute: 30, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 8,
+      startMinute: 30,
+      endHour: 9,
+      endMinute: 30,
+      title: "焼肉",
     });
   });
 
   it("分指定(4桁・1時間): 8/1、1830、焼肉 -> 18:30-19:30", () => {
     expect(parseCalendar("8/1、1830、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 18, startMinute: 30, endHour: 19, endMinute: 30, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 30,
+      endHour: 19,
+      endMinute: 30,
+      title: "焼肉",
     });
   });
 
   it("分指定(範囲): 8/1、1830-2015、焼肉 -> 18:30-20:15", () => {
     expect(parseCalendar("8/1、1830-2015、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 18, startMinute: 30, endHour: 20, endMinute: 15, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 30,
+      endHour: 20,
+      endMinute: 15,
+      title: "焼肉",
     });
   });
 
   it("開始のみ分指定、終了は時のみ: 8/1、1830-20、焼肉 -> 18:30-20:00", () => {
     expect(parseCalendar("8/1、1830-20、焼肉")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 18, startMinute: 30, endHour: 20, endMinute: 0, title: "焼肉",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 30,
+      endHour: 20,
+      endMinute: 0,
+      title: "焼肉",
     });
   });
 
@@ -179,8 +273,15 @@ describe("parseCalendar", () => {
 
   it("分省略時の終了時刻が24時を跨ぐのは許容する(23時->翌0時)", () => {
     expect(parseCalendar("8/1、23、飲み会")).toEqual({
-      type: "calendar", allDay: false, month: 8, day: 1,
-      startHour: 23, startMinute: 0, endHour: 24, endMinute: 0, title: "飲み会",
+      type: "calendar",
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 23,
+      startMinute: 0,
+      endHour: 24,
+      endMinute: 0,
+      title: "飲み会",
     });
   });
 
@@ -248,35 +349,53 @@ describe("formatCalendarNotification", () => {
   it("終日(単日)・送信者名ありの場合", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行" };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定をちゅいかちた！\n8/1 旅行"
+      "カレンが予定をちゅいかちた！\n8/1 旅行",
     );
   });
 
   it("終日(複数日)の場合", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 3, title: "旅行" };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定をちゅいかちた！\n8/1-3 旅行"
+      "カレンが予定をちゅいかちた！\n8/1-3 旅行",
     );
   });
 
   it("時間指定の場合", () => {
-    const m = { allDay: false, month: 8, day: 1, startHour: 18, startMinute: 0, endHour: 20, endMinute: 0, title: "焼肉" };
+    const m = {
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 18,
+      startMinute: 0,
+      endHour: 20,
+      endMinute: 0,
+      title: "焼肉",
+    };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定をちゅいかちた！\n8/1 18:00-20:00 焼肉"
+      "カレンが予定をちゅいかちた！\n8/1 18:00-20:00 焼肉",
     );
   });
 
   it("分指定の場合は0埋めされる", () => {
-    const m = { allDay: false, month: 8, day: 1, startHour: 8, startMinute: 5, endHour: 9, endMinute: 5, title: "焼肉" };
+    const m = {
+      allDay: false,
+      month: 8,
+      day: 1,
+      startHour: 8,
+      startMinute: 5,
+      endHour: 9,
+      endMinute: 5,
+      title: "焼肉",
+    };
     expect(formatCalendarNotification(m, "カレン")).toBe(
-      "カレンが予定をちゅいかちた！\n8/1 08:05-09:05 焼肉"
+      "カレンが予定をちゅいかちた！\n8/1 08:05-09:05 焼肉",
     );
   });
 
   it("送信者名がnullの場合は「〇〇が」を省略する", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行" };
     expect(formatCalendarNotification(m, null)).toBe(
-      "予定をちゅいかちた！\n8/1 旅行"
+      "予定をちゅいかちた！\n8/1 旅行",
     );
   });
 });
