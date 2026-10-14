@@ -94,7 +94,7 @@ describe("parseExpenseDetailed(立替)", () => {
         type: "expense",
         what: "立替: シャンプー",
         howMuch: 10000,
-        isAdvance: true,
+        isPaidOnBehalf: true,
         paidAmount: 5000,
       },
     });

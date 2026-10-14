@@ -63,7 +63,7 @@ function testExpense() {
 }
 
 // 立替 (精算上は2倍で記録) 例: 立替、品目、金額
-function testExpenseAdvance() {
+function testExpensePaidOnBehalf() {
   testSend("立替、シャンプー、5000");
 }
 
@@ -166,7 +166,7 @@ function handleExpenseMessage(text, userId, replyToken) {
     handleUnknownMessage(text, userId, replyToken);
     return;
   }
-  const successMessage = m.isAdvance
+  const successMessage = m.isPaidOnBehalf
     ? `すぷしに立替をちゅいかできた！\n${m.paidAmount}円の立替を、精算上は${m.howMuch}円で記録したちゅ`
     : "すぷしにちゅいかできた！";
   saveAndReply({ message: m, userId }, saveExpense, successMessage, replyToken);

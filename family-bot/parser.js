@@ -26,7 +26,7 @@ const CALENDAR_DATE_LIKE_PATTERN = /^\d{1,2}(\/|月)/;
 const TIME_TOKEN_PATTERN = /^(\d{1,4})(?:-(\d{1,4}))?$/;
 
 // 立替(相手の分を肩代わりした購入)を表す先頭の言葉。表記ゆれを吸収する。
-const ADVANCE_PREFIXES = ["立替", "立替え", "立て替え"];
+const PAID_ON_BEHALF_PREFIXES = ["立替", "立替え", "立て替え"];
 
 /**
  * 入力が家計簿登録かどうかを判定する。家計簿としてパースできれば家計簿とみなす。
@@ -45,11 +45,12 @@ const EXPENSE_PARSE_FAILURE = { isSuccess: false, value: null };
 
 /**
  * 家計簿の入力をパースし、{isSuccess,value}を返す。
- * 先頭が立替を表す言葉ならparseAdvanceExpenseに委ねる。
+ * 先頭が立替を表す言葉ならparsePaidOnBehalfExpenseに委ねる。
  */
 function parseExpenseDetailed(text) {
   const s = splitFields(text);
-  if (ADVANCE_PREFIXES.includes(s[0])) return parseAdvanceExpense(s.slice(1));
+  if (PAID_ON_BEHALF_PREFIXES.includes(s[0]))
+    return parsePaidOnBehalfExpense(s.slice(1));
   if (s.length !== 2) return EXPENSE_PARSE_FAILURE;
   const howMuch = parseExpenseAmount(s[1]);
   if (howMuch === null) return EXPENSE_PARSE_FAILURE;
@@ -62,7 +63,7 @@ function parseExpenseDetailed(text) {
  * 合計の差分を2X動かすと公平になる。そのためシートには実際の支払額(paidAmount)の2倍を
  * howMuchとして記録し、品目には「立替: 」を付けて通常の購入と区別できるようにする。
  */
-function parseAdvanceExpense(fields) {
+function parsePaidOnBehalfExpense(fields) {
   if (fields.length !== 2) return EXPENSE_PARSE_FAILURE;
   const [item, amountPart] = fields;
   const paidAmount = parseExpenseAmount(amountPart);
@@ -73,7 +74,7 @@ function parseAdvanceExpense(fields) {
       type: "expense",
       what: `立替: ${item}`,
       howMuch: paidAmount * 2,
-      isAdvance: true,
+      isPaidOnBehalf: true,
       paidAmount,
     },
   };
