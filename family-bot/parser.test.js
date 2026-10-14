@@ -6,7 +6,9 @@ import {
   parseCalendar,
   parseCalendarDetailed,
   isCalendarMessage,
+  isExpenseMessage,
   isHelpMessage,
+  formatUnknownMessage,
   HELP_EXAMPLES,
   formatHelpMessage,
   resolveDate,
@@ -84,20 +86,56 @@ describe("parseExpense", () => {
   });
 });
 
+describe("parseExpenseDetailed(立替)", () => {
+  it("立替は品目に「立替: 」を付け、精算上の金額を2倍で返す", () => {
+    expect(parseExpenseDetailed("立替、シャンプー、5000")).toEqual({
+      isSuccess: true,
+      value: {
+        type: "expense",
+        what: "立替: シャンプー",
+        howMuch: 10000,
+        isPaidOnBehalf: true,
+        paidAmount: 5000,
+      },
+    });
+  });
+
+  it("「立替え」「立て替え」も立替として扱う", () => {
+    expect(parseExpenseDetailed("立替え、シャンプー、5000").value.howMuch).toBe(
+      10000,
+    );
+    expect(
+      parseExpenseDetailed("立て替え、シャンプー、5000").value.howMuch,
+    ).toBe(10000);
+  });
+
+  it("金額に「=」の数式も使える", () => {
+    expect(
+      parseExpenseDetailed("立替、シャンプー、=2500*2").value.howMuch,
+    ).toBe(10000);
+  });
+
+  it("要素数が足りない、または金額が数字でなければ失敗", () => {
+    expect(parseExpenseDetailed("立替、5000")).toEqual({
+      isSuccess: false,
+      value: null,
+    });
+    expect(parseExpenseDetailed("立替、シャンプー、abc").isSuccess).toBe(false);
+  });
+});
+
 describe("parseExpenseDetailed", () => {
   it("成功時はisSuccess:trueとvalueが返る", () => {
     expect(parseExpenseDetailed("昼食、1200")).toEqual({
       isSuccess: true,
       value: { type: "expense", what: "昼食", howMuch: 1200 },
-      reason: null,
     });
   });
 
-  it("フィールド数が2でなければ、2つに分ける旨の理由が返る", () => {
+  it("フィールド数が2でなければ失敗", () => {
     expect(parseExpenseDetailed("あ、い、う")).toEqual({
       isSuccess: false,
       value: null,
-      reason: "品目と金額の2つに分けて書いてほちい(例: 昼食、1200)",
     });
   });
 });
@@ -295,26 +333,37 @@ describe("parseCalendar", () => {
 });
 
 describe("isCalendarMessage", () => {
-  it("2要素で先頭要素が日付形式(M/D)ならtrue", () => {
-    expect(isCalendarMessage("8/1、1200")).toBe(true);
+  it("先頭が日付形式(M/D, M/D-D)ならtrue", () => {
     expect(isCalendarMessage("8/1、旅行")).toBe(true);
-  });
-
-  it("2要素で先頭要素が日付形式(M/D-D)でもtrue", () => {
     expect(isCalendarMessage("8/1-3、旅行")).toBe(true);
-  });
-
-  it("2要素で先頭要素が日付形式でなければfalse", () => {
-    expect(isCalendarMessage("昼食、1200")).toBe(false);
-  });
-
-  it("3要素なら常にtrue(家計簿は必ず2要素なので3要素は家計簿になり得ない)", () => {
     expect(isCalendarMessage("8/1、18、焼肉")).toBe(true);
-    expect(isCalendarMessage("8/18,16:45-17:00,テスト")).toBe(true);
   });
 
-  it("要素数が2でも3でもなければfalse", () => {
+  it("日付の書き方が間違っていても、日付を書こうとしたっぽければtrue", () => {
+    expect(isCalendarMessage("8/18,16:45-17:00,テスト")).toBe(true);
+    expect(isCalendarMessage("8月1日、18、焼肉")).toBe(true);
+  });
+
+  it("先頭が日付っぽくなければfalse", () => {
+    expect(isCalendarMessage("昼食、1200")).toBe(false);
+    expect(isCalendarMessage("立替、シャンプー、5000")).toBe(false);
     expect(isCalendarMessage("よくわからないテキスト")).toBe(false);
+  });
+});
+
+describe("isExpenseMessage", () => {
+  it("家計簿としてパースできればtrue", () => {
+    expect(isExpenseMessage("昼食、1200")).toBe(true);
+    expect(isExpenseMessage("立替、シャンプー、5000")).toBe(true);
+    expect(isExpenseMessage("立替え、シャンプー、5000")).toBe(true);
+    expect(isExpenseMessage("立て替え、シャンプー、5000")).toBe(true);
+  });
+
+  it("家計簿としてパースできなければfalse", () => {
+    expect(isExpenseMessage("昼食、abc")).toBe(false);
+    expect(isExpenseMessage("立替、5000")).toBe(false);
+    expect(isExpenseMessage("8/1、旅行")).toBe(false);
+    expect(isExpenseMessage("よくわからないテキスト")).toBe(false);
   });
 });
 
@@ -425,6 +474,7 @@ describe("HELP_EXAMPLES", () => {
     "家計簿の例「%s」は家計簿としてパースできる",
     (example) => {
       expect(isCalendarMessage(example)).toBe(false);
+      expect(isExpenseMessage(example)).toBe(true);
       expect(parseExpenseDetailed(example).isSuccess).toBe(true);
     },
   );
@@ -446,5 +496,43 @@ describe("formatHelpMessage", () => {
         expect(message).toContain(example);
       },
     );
+  });
+});
+
+describe("formatUnknownMessage", () => {
+  it("当てはまらない旨とヘルプを含む", () => {
+    const message = formatUnknownMessage();
+    expect(message).toContain("どの書き方にも当てはまらないちゅ");
+    expect(message).toContain(formatHelpMessage());
+  });
+});
+
+describe("入力形式の判定", () => {
+  it("ヘルプ・カレンダー・家計簿の入力例は、それぞれ自分の判定にだけ当てはまる", () => {
+    const judges = { isHelpMessage, isCalendarMessage, isExpenseMessage };
+    const cases = [
+      ["ヘルプ", "isHelpMessage"],
+      ...HELP_EXAMPLES.calendar.map((e) => [e.example, "isCalendarMessage"]),
+      ...HELP_EXAMPLES.expense.map((e) => [e.example, "isExpenseMessage"]),
+    ];
+    cases.forEach(([text, expected]) => {
+      const matched = Object.keys(judges).filter((name) => judges[name](text));
+      expect(matched, text).toEqual([expected]);
+    });
+  });
+
+  it("日付っぽい品目と数字の組み合わせ(8/1、1200)は両方に当てはまるため、優先順でカレンダーになる", () => {
+    expect(isCalendarMessage("8/1、1200")).toBe(true);
+    expect(isExpenseMessage("8/1、1200")).toBe(true);
+  });
+
+  it("どの判定にも当てはまらない入力がある", () => {
+    ["よくわからないテキスト", "昼食、1200、追加"].forEach((text) => {
+      expect(
+        isHelpMessage(text) ||
+          isCalendarMessage(text) ||
+          isExpenseMessage(text),
+      ).toBe(false);
+    });
   });
 });
