@@ -57,49 +57,82 @@ function testSend(text) {
   });
 }
 
+// テストで記録した精算シートの行だとひと目でわかるよう、品目にはこれを使う
+// (精算シートは本番の家計簿なので、実行後は記録された行を消すこと)
+const TEST_EXPENSE_ITEM = "テスト支出";
+
 // 家計簿
 function testExpense() {
-  testSend("昼食、1200");
+  testSend(`${TEST_EXPENSE_ITEM}、1200`);
 }
 
 // 立替 (精算上は2倍で記録) 例: 立替、品目、金額
 function testExpensePaidOnBehalf() {
-  testSend("立替、シャンプー、5000");
+  testSend(`立替、${TEST_EXPENSE_ITEM}、5000`);
 }
+
+/**
+ * テスト用のカレンダー日付ラベル(M/D)を返す。過去日だと来年扱いになってしまうため、
+ * テスト実施日の翌日にしておき、作成された予定をすぐ見つけて消せるようにする。
+ */
+function tomorrowLabelForTest() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/**
+ * テスト用の複数日の日付ラベル(M/D-D)を返す。翌日から3日間とし、月をまたぐ場合は
+ * 「M/D-D」の形式で書けないため、翌月1日から3日間にする。
+ */
+function tomorrowRangeLabelForTest() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const lastDayOfMonth = new Date(
+    d.getFullYear(),
+    d.getMonth() + 1,
+    0,
+  ).getDate();
+  if (d.getDate() + 2 > lastDayOfMonth) d.setMonth(d.getMonth() + 1, 1);
+  return `${d.getMonth() + 1}/${d.getDate()}-${d.getDate() + 2}`;
+}
+
+// テストで作成した予定だとひと目でわかるよう、予定名にはこれを使う
+const TEST_SCHEDULE_TITLE = "テストスケジュール";
 
 // 終日 (単日) 例: 8/1、予定名
 function testCalendarAllDaySingle() {
-  testSend("8/1、旅行");
+  testSend(`${tomorrowLabelForTest()}、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 終日 (複数日) 例: 8/1-3、予定名
 function testCalendarAllDayMulti() {
-  testSend("8/1-3、旅行");
+  testSend(`${tomorrowRangeLabelForTest()}、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (1時間) 例: 8/1、18、予定名 -> 18:00-19:00
 function testCalendarTimedSingleHour() {
-  testSend("8/1、18、焼肉");
+  testSend(`${tomorrowLabelForTest()}、18、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (範囲) 例: 8/1、18-20、予定名 -> 18:00-20:00
 function testCalendarTimedRange() {
-  testSend("8/1、18-20、焼肉");
+  testSend(`${tomorrowLabelForTest()}、18-20、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (分単位) 例: 8/1、1830、予定名 -> 18:30-19:30
 function testCalendarTimedMinute() {
-  testSend("8/1、1830、焼肉");
+  testSend(`${tomorrowLabelForTest()}、1830、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (分単位・範囲) 例: 8/1、1830-2015、予定名
 function testCalendarTimedMinuteRange() {
-  testSend("8/1、1830-2015、焼肉");
+  testSend(`${tomorrowLabelForTest()}、1830-2015、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 区切り文字にカンマ・スペースを使った例
 function testCalendarAltDelimiters() {
-  testSend("8/1, 18-20, 焼肉");
+  testSend(`${tomorrowLabelForTest()}, 18-20, ${TEST_SCHEDULE_TITLE}`);
 }
 
 // ヘルプ
