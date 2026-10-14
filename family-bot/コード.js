@@ -57,14 +57,18 @@ function testSend(text) {
   });
 }
 
+// テストで記録した精算シートの行だとひと目でわかるよう、品目にはこれを使う
+// (精算シートは本番の家計簿なので、実行後は記録された行を消すこと)
+const TEST_EXPENSE_ITEM = "テスト支出";
+
 // 家計簿
 function testExpense() {
-  testSend("昼食、1200");
+  testSend(`${TEST_EXPENSE_ITEM}、1200`);
 }
 
 // 立替 (精算上は2倍で記録) 例: 立替、品目、金額
 function testExpensePaidOnBehalf() {
-  testSend("立替、シャンプー、5000");
+  testSend(`立替、${TEST_EXPENSE_ITEM}、5000`);
 }
 
 /**
