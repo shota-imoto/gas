@@ -97,6 +97,11 @@ function testCalendarAltDelimiters() {
   testSend("8/1, 18-20, 焼肉");
 }
 
+// ヘルプ
+function testHelp() {
+  testSend("ヘルプ");
+}
+
 /**
  * 入力形式が正しくない場合や保存処理に失敗した場合、送信者本人にLINEで返信する。
  * 家計簿・カレンダーどちらも登録が成功した場合、登録できたことが送信者本人に伝わるよう返信する。
@@ -124,7 +129,15 @@ function doPost(e) {
  * もう一方の形式は試さない(例: 「8/18、1645」が家計簿として誤登録されるのを防ぐ)。
  */
 function resolveMessageHandler(text) {
+  if (isHelpMessage(text)) return handleHelpMessage;
   return isCalendarMessage(text) ? handleCalendarMessage : handleExpenseMessage;
+}
+
+/**
+ * 「ヘルプ」に対して、入力パターンの一覧を送信者本人に返信する。
+ */
+function handleHelpMessage(text, userId, replyToken) {
+  replyLineMessage(replyToken, formatHelpMessage());
 }
 
 /**

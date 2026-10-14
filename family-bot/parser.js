@@ -250,6 +250,49 @@ function isCalendarMessage(text) {
 }
 
 /**
+ * 「ヘルプ」「へるぷ」と送られてきたかを判定する(前後の空白は無視する)。
+ */
+function isHelpMessage(text) {
+  return ["ヘルプ", "へるぷ"].includes(text.trim());
+}
+
+// ヘルプで案内する入力例。例文が実際にパースできることをテストで保証するため、
+// 文言ではなくデータとして持ち、formatHelpMessageで組み立てる。
+const HELP_EXAMPLES = {
+  expense: [
+    { label: "基本", example: "昼食、1200" },
+    { label: "マイナス", example: "精算、-1200" },
+    { label: "「=」で計算", example: "精算、=2500*2" },
+  ],
+  calendar: [
+    { label: "終日", example: "8/1、旅行" },
+    { label: "終日(複数日)", example: "8/1-3、旅行" },
+    { label: "時間指定(1時間)", example: "8/1、18、焼肉" },
+    { label: "時間指定(範囲)", example: "8/1、18-20、焼肉" },
+    { label: "分まで指定", example: "8/1、1830-2015、焼肉" },
+  ],
+};
+
+/**
+ * 「ヘルプ」への返信メッセージ本文を組み立てる。
+ */
+function formatHelpMessage() {
+  const lines = (examples) =>
+    examples.map(({ label, example }) => `・${label}: ${example}`).join("\n");
+  return [
+    "使い方を教えるちゅ！",
+    "",
+    "【家計簿】品目、金額",
+    lines(HELP_EXAMPLES.expense),
+    "",
+    "【カレンダー】日付、(時刻、)予定名",
+    lines(HELP_EXAMPLES.calendar),
+    "",
+    "区切りは「、」「,」スペースのどれでもOKちゅ",
+  ].join("\n");
+}
+
+/**
  * 年が省略されているため、今年の日付として解決する。
  * すでに今日より過去の日付になる場合は来年として扱う。
  */
@@ -305,6 +348,9 @@ if (typeof module !== "undefined" && module.exports) {
     parseCalendar,
     parseCalendarDetailed,
     isCalendarMessage,
+    isHelpMessage,
+    HELP_EXAMPLES,
+    formatHelpMessage,
     resolveDate,
     formatCalendarNotification,
   };

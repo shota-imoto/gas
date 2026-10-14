@@ -6,6 +6,9 @@ import {
   parseCalendar,
   parseCalendarDetailed,
   isCalendarMessage,
+  isHelpMessage,
+  HELP_EXAMPLES,
+  formatHelpMessage,
   resolveDate,
   formatCalendarNotification,
 } from "./parser.js";
@@ -396,6 +399,52 @@ describe("formatCalendarNotification", () => {
     const m = { allDay: true, month: 8, startDay: 1, endDay: 1, title: "旅行" };
     expect(formatCalendarNotification(m, null)).toBe(
       "予定をちゅいかちた！\n8/1 旅行",
+    );
+  });
+});
+
+describe("isHelpMessage", () => {
+  it("「ヘルプ」「へるぷ」ならtrue(前後の空白は無視)", () => {
+    expect(isHelpMessage("ヘルプ")).toBe(true);
+    expect(isHelpMessage(" ヘルプ\n")).toBe(true);
+    expect(isHelpMessage("へるぷ")).toBe(true);
+  });
+
+  it("「ヘルプ」以外ならfalse", () => {
+    expect(isHelpMessage("ヘルプ、1200")).toBe(false);
+    expect(isHelpMessage("help")).toBe(false);
+  });
+
+  it("「ヘルプ」はカレンダーとは判定されない", () => {
+    expect(isCalendarMessage("ヘルプ")).toBe(false);
+  });
+});
+
+describe("HELP_EXAMPLES", () => {
+  it.each(HELP_EXAMPLES.expense.map((e) => e.example))(
+    "家計簿の例「%s」は家計簿としてパースできる",
+    (example) => {
+      expect(isCalendarMessage(example)).toBe(false);
+      expect(parseExpenseDetailed(example).isSuccess).toBe(true);
+    },
+  );
+
+  it.each(HELP_EXAMPLES.calendar.map((e) => e.example))(
+    "カレンダーの例「%s」はカレンダーとしてパースできる",
+    (example) => {
+      expect(isCalendarMessage(example)).toBe(true);
+      expect(parseCalendarDetailed(example).isSuccess).toBe(true);
+    },
+  );
+});
+
+describe("formatHelpMessage", () => {
+  it("全ての入力例を含む", () => {
+    const message = formatHelpMessage();
+    [...HELP_EXAMPLES.expense, ...HELP_EXAMPLES.calendar].forEach(
+      ({ example }) => {
+        expect(message).toContain(example);
+      },
     );
   });
 });
