@@ -167,8 +167,8 @@ function handleExpenseMessage(text, userId, replyToken) {
     return;
   }
   const successMessage = m.isAdvance
-    ? `すぷ氏に立替をちゅいかできた！\n${m.paidAmount}円の立替を、精算上は${m.howMuch}円で記録したちゅ`
-    : "すぷ氏にちゅいかできた！";
+    ? `すぷしに立替をちゅいかできた！\n${m.paidAmount}円の立替を、精算上は${m.howMuch}円で記録したちゅ`
+    : "すぷしにちゅいかできた！";
   saveAndReply({ message: m, userId }, saveExpense, successMessage, replyToken);
 }
 
