@@ -67,39 +67,68 @@ function testExpensePaidOnBehalf() {
   testSend("立替、シャンプー、5000");
 }
 
+/**
+ * テスト用のカレンダー日付ラベル(M/D)を返す。過去日だと来年扱いになってしまうため、
+ * テスト実施日の翌日にしておき、作成された予定をすぐ見つけて消せるようにする。
+ */
+function testTomorrowLabel() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/**
+ * テスト用の複数日の日付ラベル(M/D-D)を返す。翌日から3日間とし、月をまたぐ場合は
+ * 「M/D-D」の形式で書けないため、翌月1日から3日間にする。
+ */
+function testTomorrowRangeLabel() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const lastDayOfMonth = new Date(
+    d.getFullYear(),
+    d.getMonth() + 1,
+    0,
+  ).getDate();
+  if (d.getDate() + 2 > lastDayOfMonth) d.setMonth(d.getMonth() + 1, 1);
+  return `${d.getMonth() + 1}/${d.getDate()}-${d.getDate() + 2}`;
+}
+
+// テストで作成した予定だとひと目でわかるよう、予定名にはこれを使う
+const TEST_SCHEDULE_TITLE = "テストスケジュール";
+
 // 終日 (単日) 例: 8/1、予定名
 function testCalendarAllDaySingle() {
-  testSend("8/1、旅行");
+  testSend(`${testTomorrowLabel()}、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 終日 (複数日) 例: 8/1-3、予定名
 function testCalendarAllDayMulti() {
-  testSend("8/1-3、旅行");
+  testSend(`${testTomorrowRangeLabel()}、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (1時間) 例: 8/1、18、予定名 -> 18:00-19:00
 function testCalendarTimedSingleHour() {
-  testSend("8/1、18、焼肉");
+  testSend(`${testTomorrowLabel()}、18、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (範囲) 例: 8/1、18-20、予定名 -> 18:00-20:00
 function testCalendarTimedRange() {
-  testSend("8/1、18-20、焼肉");
+  testSend(`${testTomorrowLabel()}、18-20、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (分単位) 例: 8/1、1830、予定名 -> 18:30-19:30
 function testCalendarTimedMinute() {
-  testSend("8/1、1830、焼肉");
+  testSend(`${testTomorrowLabel()}、1830、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 時間指定 (分単位・範囲) 例: 8/1、1830-2015、予定名
 function testCalendarTimedMinuteRange() {
-  testSend("8/1、1830-2015、焼肉");
+  testSend(`${testTomorrowLabel()}、1830-2015、${TEST_SCHEDULE_TITLE}`);
 }
 
 // 区切り文字にカンマ・スペースを使った例
 function testCalendarAltDelimiters() {
-  testSend("8/1, 18-20, 焼肉");
+  testSend(`${testTomorrowLabel()}, 18-20, ${TEST_SCHEDULE_TITLE}`);
 }
 
 // ヘルプ
