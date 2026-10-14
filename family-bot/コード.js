@@ -62,6 +62,11 @@ function testExpense() {
   testSend("昼食、1200");
 }
 
+// 立替 (精算上は2倍で記録) 例: 立替、品目、金額
+function testExpenseAdvance() {
+  testSend("立替、シャンプー、5000");
+}
+
 // 終日 (単日) 例: 8/1、予定名
 function testCalendarAllDaySingle() {
   testSend("8/1、旅行");
@@ -125,12 +130,23 @@ function doPost(e) {
 
 /**
  * 入力テキストに対して実行すべきハンドラー関数を返す。
- * 種別の判定(isCalendarMessage)はここで確定させ、選んだ側のパースに失敗しても
- * もう一方の形式は試さない(例: 「8/18、1645」が家計簿として誤登録されるのを防ぐ)。
+ * 各判定(isXxxMessage)は自分の形式の知識だけで書き、ヘルプ→カレンダー→家計簿の優先順で
+ * 最初に当てはまったものを選ぶ。選んだ側のパースに失敗してももう一方の形式は試さない
+ * (例: 「8/18、1645」が家計簿として誤登録されるのを防ぐ)。どれにも当てはまらなければ
+ * その旨とヘルプを返信する。
  */
 function resolveMessageHandler(text) {
   if (isHelpMessage(text)) return handleHelpMessage;
-  return isCalendarMessage(text) ? handleCalendarMessage : handleExpenseMessage;
+  if (isCalendarMessage(text)) return handleCalendarMessage;
+  if (isExpenseMessage(text)) return handleExpenseMessage;
+  return handleUnknownMessage;
+}
+
+/**
+ * どの入力形式にも当てはまらなかった場合に、その旨と入力パターンの一覧を返信する。
+ */
+function handleUnknownMessage(text, userId, replyToken) {
+  replyLineMessage(replyToken, formatUnknownMessage());
 }
 
 /**
@@ -149,12 +165,10 @@ function handleExpenseMessage(text, userId, replyToken) {
     replyInputError(replyToken, reason);
     return;
   }
-  saveAndReply(
-    { message: m, userId },
-    saveExpense,
-    "すぷ氏にちゅいかできた！",
-    replyToken,
-  );
+  const successMessage = m.isAdvance
+    ? `すぷ氏に立替をちゅいかできた！\n${m.paidAmount}円の立替を、精算上は${m.howMuch}円で記録したちゅ`
+    : "すぷ氏にちゅいかできた！";
+  saveAndReply({ message: m, userId }, saveExpense, successMessage, replyToken);
 }
 
 /**

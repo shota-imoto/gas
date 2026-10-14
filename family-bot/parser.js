@@ -16,11 +16,24 @@ function splitFields(text) {
   return text.split(/[、,，\s]+/).filter((s) => s.length > 0);
 }
 
-// カレンダーの日付表記(例: 8/1, 8/1-3)。parseCalendarDetailedとisCalendarMessageで共有する。
+// カレンダーの日付表記(例: 8/1, 8/1-3)。
 const CALENDAR_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})(?:-(\d{1,2}))?$/;
+// カレンダー入力の意図があるかの判定に使う、日付を書こうとしたっぽい先頭(例: 8/1, 8/1-3, 8月1日)。
+// 書き方を間違えた日付もカレンダーとして扱い、カレンダー側の失敗理由を返せるよう緩めにしている。
+const CALENDAR_DATE_LIKE_PATTERN = /^\d{1,2}(\/|月)/;
 // 時刻トークン(例: 18, 18-20)。時間指定パターンのhourPartと、終日パターンで予定名が
 // 時刻の書き忘れっぽいかどうかの判定の両方で使う。
 const TIME_TOKEN_PATTERN = /^(\d{1,4})(?:-(\d{1,4}))?$/;
+
+// 立替(相手の分を肩代わりした購入)を表す先頭の言葉。表記ゆれを吸収する。
+const ADVANCE_PREFIXES = ["立替", "立替え", "立て替え"];
+
+/**
+ * 入力が家計簿登録かどうかを判定する。家計簿としてパースできれば家計簿とみなす。
+ */
+function isExpenseMessage(text) {
+  return parseExpenseDetailed(text).isSuccess;
+}
 
 function parseExpense(text) {
   return parseExpenseDetailed(text).value;
@@ -29,9 +42,11 @@ function parseExpense(text) {
 /**
  * parseExpenseに加え、失敗時に送信者へ表示する理由(reason)も返す。
  * 「品目、金額」のフォーマット自体は変えず、失敗理由の文言だけをここに集約する。
+ * 先頭が立替を表す言葉ならparseAdvanceExpenseに委ねる。
  */
 function parseExpenseDetailed(text) {
   const s = splitFields(text);
+  if (ADVANCE_PREFIXES.includes(s[0])) return parseAdvanceExpense(s.slice(1));
   if (s.length !== 2) {
     return {
       isSuccess: false,
@@ -50,6 +65,43 @@ function parseExpenseDetailed(text) {
   return {
     isSuccess: true,
     value: { type: "expense", what: s[0], howMuch },
+    reason: null,
+  };
+}
+
+/**
+ * 立替(「立替、品目、金額」の品目・金額部分)をパースする。
+ * 精算シートは「各自の支払合計を揃える」運用のため、相手の分をX円肩代わりした場合は
+ * 合計の差分を2X動かすと公平になる。そのためシートには実際の支払額(paidAmount)の2倍を
+ * howMuchとして記録し、品目には「立替: 」を付けて通常の購入と区別できるようにする。
+ */
+function parseAdvanceExpense(fields) {
+  if (fields.length !== 2) {
+    return {
+      isSuccess: false,
+      value: null,
+      reason:
+        "立替は「立替、品目、金額」の3つに分けて書いてほちい(例: 立替、シャンプー、5000)",
+    };
+  }
+  const [item, amountPart] = fields;
+  const paidAmount = parseExpenseAmount(amountPart);
+  if (paidAmount === null) {
+    return {
+      isSuccess: false,
+      value: null,
+      reason: "金額のところが数字になってないちゅ(マイナスや「=」の数式もOK)",
+    };
+  }
+  return {
+    isSuccess: true,
+    value: {
+      type: "expense",
+      what: `立替: ${item}`,
+      howMuch: paidAmount * 2,
+      isAdvance: true,
+      paidAmount,
+    },
     reason: null,
   };
 }
@@ -237,16 +289,13 @@ function parseCalendarDetailed(text) {
 }
 
 /**
- * 入力がカレンダー登録の意図かどうかを判定する(falseなら家計簿として扱う)。
- * 家計簿は必ず2要素(品目、金額)なので、3要素の入力はカレンダー(時間指定パターン)とみなす。
- * 2要素の場合は、先頭要素が日付形式(M/DまたはM/D-D)かどうかで判定する(parseExpenseは先頭要素の
- * 形式を問わないため、「8/1、1200」のように予定名が数字のカレンダー入力を家計簿として誤って
- * 飲み込んでしまうのを防ぐ)。ここで種別を確定させ、パースに失敗しても他方の形式は試さない。
+ * 入力がカレンダー登録の意図かどうかを判定する。先頭が日付を書こうとしたっぽい形
+ * (CALENDAR_DATE_LIKE_PATTERN)ならカレンダーとみなす。日付の書き方が間違っていても
+ * カレンダーとして扱い、パース時にカレンダー側の失敗理由を返す。
  */
 function isCalendarMessage(text) {
   const s = splitFields(text);
-  if (s.length === 3) return true;
-  return s.length === 2 && CALENDAR_DATE_PATTERN.test(s[0]);
+  return s.length > 0 && CALENDAR_DATE_LIKE_PATTERN.test(s[0]);
 }
 
 /**
@@ -263,6 +312,7 @@ const HELP_EXAMPLES = {
     { label: "基本", example: "昼食、1200" },
     { label: "マイナス", example: "精算、-1200" },
     { label: "「=」で計算", example: "精算、=2500*2" },
+    { label: "立替(相手の分を払った)", example: "立替、シャンプー、5000" },
   ],
   calendar: [
     { label: "終日", example: "8/1、旅行" },
@@ -282,7 +332,7 @@ function formatHelpMessage() {
   return [
     "使い方を教えるちゅ！",
     "",
-    "【家計簿】品目、金額",
+    "【家計簿】(立替、)品目、金額",
     lines(HELP_EXAMPLES.expense),
     "",
     "【カレンダー】日付、(時刻、)予定名",
@@ -290,6 +340,13 @@ function formatHelpMessage() {
     "",
     "区切りは「、」「,」スペースのどれでもOKちゅ",
   ].join("\n");
+}
+
+/**
+ * どの入力形式にも当てはまらなかった場合の返信メッセージ本文を組み立てる。
+ */
+function formatUnknownMessage() {
+  return `どの書き方にも当てはまらないちゅ🤔\n\n${formatHelpMessage()}`;
 }
 
 /**
@@ -348,6 +405,8 @@ if (typeof module !== "undefined" && module.exports) {
     parseCalendar,
     parseCalendarDetailed,
     isCalendarMessage,
+    isExpenseMessage,
+    formatUnknownMessage,
     isHelpMessage,
     HELP_EXAMPLES,
     formatHelpMessage,
