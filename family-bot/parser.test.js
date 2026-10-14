@@ -97,7 +97,6 @@ describe("parseExpenseDetailed(立替)", () => {
         isAdvance: true,
         paidAmount: 5000,
       },
-      reason: null,
     });
   });
 
@@ -116,19 +115,12 @@ describe("parseExpenseDetailed(立替)", () => {
     ).toBe(10000);
   });
 
-  it("要素数が足りなければ立替の書き方の理由が返る", () => {
+  it("要素数が足りない、または金額が数字でなければ失敗", () => {
     expect(parseExpenseDetailed("立替、5000")).toEqual({
       isSuccess: false,
       value: null,
-      reason:
-        "立替は「立替、品目、金額」の3つに分けて書いてほちい(例: 立替、シャンプー、5000)",
     });
-  });
-
-  it("金額が数字でなければ金額の理由が返る", () => {
-    expect(parseExpenseDetailed("立替、シャンプー、abc").reason).toBe(
-      "金額のところが数字になってないちゅ(マイナスや「=」の数式もOK)",
-    );
+    expect(parseExpenseDetailed("立替、シャンプー、abc").isSuccess).toBe(false);
   });
 });
 
@@ -137,15 +129,13 @@ describe("parseExpenseDetailed", () => {
     expect(parseExpenseDetailed("昼食、1200")).toEqual({
       isSuccess: true,
       value: { type: "expense", what: "昼食", howMuch: 1200 },
-      reason: null,
     });
   });
 
-  it("フィールド数が2でなければ、2つに分ける旨の理由が返る", () => {
+  it("フィールド数が2でなければ失敗", () => {
     expect(parseExpenseDetailed("あ、い、う")).toEqual({
       isSuccess: false,
       value: null,
-      reason: "品目と金額の2つに分けて書いてほちい(例: 昼食、1200)",
     });
   });
 });

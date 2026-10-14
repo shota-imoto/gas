@@ -39,34 +39,21 @@ function parseExpense(text) {
   return parseExpenseDetailed(text).value;
 }
 
+// 家計簿としてパースできなかった場合の戻り値。家計簿は判定(isExpenseMessage)自体がパース成否で
+// 決まり、失敗時はヘルプを返すため、カレンダーと違って失敗理由は持たない。
+const EXPENSE_PARSE_FAILURE = { isSuccess: false, value: null };
+
 /**
- * parseExpenseに加え、失敗時に送信者へ表示する理由(reason)も返す。
- * 「品目、金額」のフォーマット自体は変えず、失敗理由の文言だけをここに集約する。
+ * 家計簿の入力をパースし、{isSuccess,value}を返す。
  * 先頭が立替を表す言葉ならparseAdvanceExpenseに委ねる。
  */
 function parseExpenseDetailed(text) {
   const s = splitFields(text);
   if (ADVANCE_PREFIXES.includes(s[0])) return parseAdvanceExpense(s.slice(1));
-  if (s.length !== 2) {
-    return {
-      isSuccess: false,
-      value: null,
-      reason: "品目と金額の2つに分けて書いてほちい(例: 昼食、1200)",
-    };
-  }
+  if (s.length !== 2) return EXPENSE_PARSE_FAILURE;
   const howMuch = parseExpenseAmount(s[1]);
-  if (howMuch === null) {
-    return {
-      isSuccess: false,
-      value: null,
-      reason: "金額のところが数字になってないちゅ(マイナスや「=」の数式もOK)",
-    };
-  }
-  return {
-    isSuccess: true,
-    value: { type: "expense", what: s[0], howMuch },
-    reason: null,
-  };
+  if (howMuch === null) return EXPENSE_PARSE_FAILURE;
+  return { isSuccess: true, value: { type: "expense", what: s[0], howMuch } };
 }
 
 /**
@@ -76,23 +63,10 @@ function parseExpenseDetailed(text) {
  * howMuchとして記録し、品目には「立替: 」を付けて通常の購入と区別できるようにする。
  */
 function parseAdvanceExpense(fields) {
-  if (fields.length !== 2) {
-    return {
-      isSuccess: false,
-      value: null,
-      reason:
-        "立替は「立替、品目、金額」の3つに分けて書いてほちい(例: 立替、シャンプー、5000)",
-    };
-  }
+  if (fields.length !== 2) return EXPENSE_PARSE_FAILURE;
   const [item, amountPart] = fields;
   const paidAmount = parseExpenseAmount(amountPart);
-  if (paidAmount === null) {
-    return {
-      isSuccess: false,
-      value: null,
-      reason: "金額のところが数字になってないちゅ(マイナスや「=」の数式もOK)",
-    };
-  }
+  if (paidAmount === null) return EXPENSE_PARSE_FAILURE;
   return {
     isSuccess: true,
     value: {
@@ -102,7 +76,6 @@ function parseAdvanceExpense(fields) {
       isAdvance: true,
       paidAmount,
     },
-    reason: null,
   };
 }
 

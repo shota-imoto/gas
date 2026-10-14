@@ -157,12 +157,13 @@ function handleHelpMessage(text, userId, replyToken) {
 }
 
 /**
- * テキストを家計簿としてパースし、成功すれば保存・返信し、失敗すれば理由を返信する。
+ * テキストを家計簿としてパースし、保存・返信する。
  */
 function handleExpenseMessage(text, userId, replyToken) {
-  const { isSuccess, value: m, reason } = parseExpenseDetailed(text);
+  // resolveMessageHandlerがパース成功時のみ家計簿に振り分けるため通常は失敗しないが、念のため
+  const { isSuccess, value: m } = parseExpenseDetailed(text);
   if (!isSuccess) {
-    replyInputError(replyToken, reason);
+    handleUnknownMessage(text, userId, replyToken);
     return;
   }
   const successMessage = m.isAdvance
